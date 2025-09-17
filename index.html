@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <!-- Meta tags for social media banners -->
+  <meta name="description" content="Temporal Score Rescaling for Temperature Sampling in Diffusion and Flow Models">
+  <meta property="og:title" content="Temporal Score Rescaling for Temperature Sampling"/>
+  <meta property="og:description" content="Simple Way of Controlling the Temperature of Diffusion and Flow models"/>
+  <meta property="og:url" content="URL OF THE WEBSITE"/>
+  <meta property="og:image" content="static/image/your_banner_image.png" />
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+
+  <meta name="twitter:title" content="Temporal Score Rescaling for Temperature Sampling">
+  <meta name="twitter:description" content="Simple Way of Controlling the Temperature of Diffusion and Flow models">
+  <meta name="twitter:image" content="static/images/your_twitter_banner_image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="keywords" content="diffusion models, flow matching, temperature sampling, score rescaling">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Temporal Score Rescaling for Temperature Sampling in Diffusion and Flow Models</title>
+  <link rel="icon" type="image/x-icon" href="static/images/favicon.ico">
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+
+  <link rel="stylesheet" href="static/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="static/css/fontawesome.all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+
+  <!-- MathJax for mathematical notation -->
+  <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+      }
+    };
+  </script>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://documentcloud.adobe.com/view-sdk/main.js"></script>
+  <script defer src="static/js/fontawesome.all.min.js"></script>
+  <script src="static/js/bulma-carousel.min.js"></script>
+  <script src="static/js/bulma-slider.min.js"></script>
+  <script src="static/js/index.js"></script>
+
+  <!-- Plotly for interactive visualizations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+
+  <style>
+    .slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #3b82f6;
+      cursor: pointer;
+    }
+    
+    .slider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #3b82f6;
+      cursor: pointer;
+      border: none;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+
+    /* Smooth transitions for plot visibility */
+    .method-plot {
+      transition: all 0.3s ease-in-out;
+    }
+    
+    .method-plot.hidden {
+      display: none !important;
+    }
+
+    /* Grid auto-fit when plots are hidden */
+    .grid.adaptive {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+    }
+
+    /* Force K button styling */
+    button[id^="k-btn-"][data-selected="true"] {
+      background-color: #2563eb !important;
+      color: #ffffff !important;
+    }
+    
+    button[id^="k-btn-"][data-selected="false"] {
+      background-color: #e5e7eb !important;
+      color: #374151 !important;
+    }
+    
+    button[id^="k-btn-"] {
+      border: none !important;
+    }
+
+    /* Custom styling for method plots */
+    .method-control-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .method-control-buttons button {
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* TSR button always active styling */
+    .method-control-buttons button[data-method="tsr"] {
+      background-color: #10b981 !important;
+      color: white !important;
+      cursor: default;
+    }
+
+    /* Other method buttons */
+    .method-control-buttons button:not([data-method="tsr"]) {
+      background-color: #e5e7eb;
+      color: #374151;
+      cursor: pointer;
+    }
+
+    .method-control-buttons button:not([data-method="tsr"]).active {
+      background-color: #2563eb;
+      color: white;
+    }
+
+    .method-control-buttons button:not([data-method="tsr"]):hover:not(.active) {
+      background-color: #d1d5db;
+    }
+
+    .method-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .method-plot {
+      text-align: center;
+    }
+
+    .method-plot .image-container {
+      background-color: #f8f9fa;
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .method-plot img {
+      width: 100%;
+      height: 16rem;
+      object-fit: contain;
+      border-radius: 0.25rem;
+    }
+
+    .interactive-viz-container {
+      background: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .control-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .control-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .button-group button {
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      transition: all 0.3s ease;
+    }
+
+    #plotly-chart {
+      width: 100%;
+      height: 450px;
+      position: relative;
+    }
+
+    #loading-spinner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.75);
+    }
+
+    .time-control {
+      margin-top: 1.5rem;
+    }
+
+    .time-control input[type="range"] {
+      width: 100%;
+      height: 0.5rem;
+      background: #e5e7eb;
+      border-radius: 0.5rem;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .play-control {
+      margin-top: 1rem;
+      text-align: center;
+    }
+
+    .play-control button {
+      padding: 0.5rem 1.5rem;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background-color 0.3s ease;
+    }
+
+    .play-control button:hover {
+      background: #059669;
+    }
+
+    /* Performance stats styling */
+    .performance-stats {
+      font-size: 0.75rem;
+      color: #6b7280;
+      text-align: right;
+      margin-top: 0.5rem;
+    }
+
+    /* Section separator */
+    .generation-section {
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .generation-section:last-child {
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body>
+
+  <section class="hero">
+    <div class="hero-body">
+      <div class="container is-max-desktop">
+        <div class="columns is-centered">
+          <div class="column has-text-centered">
+            <h1 class="title is-1 publication-title">Temporal Score Rescaling for Temperature Sampling in Diffusion and Flow Models</h1>
+            <div class="is-size-5 publication-authors">
+              <!-- Paper authors -->
+              <span class="author-block">
+                <a href="https://iclr.cc/" target="_blank">Anonymous ICLR Submission ID </a></span>
+
+                  
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Paper abstract -->
+<section class="section hero is-light">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            Given the success of diffusion and flow models across various domains, controllable sampling for score-based generative models has drawn increasing 
+            attention. We present Temperature Score Rescaling ($\texttt{TSR}$), a novel mechanism to steer the sample diversity of score-based models, allowing users to 
+            sample from a sharper or broader distribution than the training distribution. We derive a time-dependent score rescaling function that can be used to 
+            scale the predicted score during inference. Notably, this approach does not require any finetuning or alterations to training strategy, and can be applied 
+            to any off-the-shelf score-based model. We first validate our framework on toy 2D data, and then demonstrate its application for diffusion models trained 
+            across five disparate tasks -- image generation, pose estimation, depth prediction, robot manipulation, and protein design. Across these tasks, $\texttt{TSR}$ allows sampling from sharper (or flatter) distributions and yields performance gains \eg depth prediction models benefit from sampling more likely depth estimates, whereas image generation models perform better when sampling a flatter distribution.
+            </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- End paper abstract -->
+
+<!-- Main Content Section -->
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="content">
+
+      <h2 class="title is-3">Diffusion and Flow Models</h2>
+      <p>
+        Diffusion and flow models both fall under the family of stochastic interpolant<sup>1</sup>, which converts samples from data distribution $\mathbf{x}_0 \sim p_0(\mathbf{x})$ to Gaussian noise $\boldsymbol{\epsilon} \sim \mathcal{N}(0, \mathbf{I})$. The interpolant process can be defined as:
+      </p>
+
+      <div class="has-text-centered" style="margin: 2rem 0;">
+        $\mathbf{x}_t = \alpha_t \mathbf{x}_0 + \sigma_t \boldsymbol{\epsilon} \tag{1}$
+      </div>
+
+      <p>
+        Different noise schedules $\alpha_t, \sigma_t$ correspond to different formulations of stochastic interpolants. For example, for flow matching models it is common to set $\alpha_t=1-t, \ \sigma_t=t$, while for variance-preserving diffusion models they are defined such that $\alpha_t^2 + \sigma_t^2 = 1$.
+      </p>
+
+      <h2 class="title is-3">Temperature Scaling</h2>
+      <p>
+        The process of trading off sample likelihood and diversity at inference is commonly referred to as temperature sampling – a higher temperature leads to diverse samples, and a lower temperature leads to more likely ones. 
+        In the following, we explain two common approaches to steer the inference of diffusion or flow models, and discuss their limitations.
+      </p>
+
+      <h3 class="title is-4">Classifier Free Guidance</h3>
+      <p>
+        Classifier-Free Guidance (CFG) is a widely-used technique for controlling the trade-off between sample quality and diversity in both diffusion models and flow matching. The core idea is to interpolate between an unconditional model prediction and a conditional model prediction during sampling.
+      </p>
+
+      <p>
+        For any score-based or flow-based generative model, CFG modifies the predicted direction (whether it's a score, velocity, or flow field) as:
+      </p>
+
+      <div class="has-text-centered" style="margin: 2rem 0;">
+        $\tilde{\mathbf{v}}_t = \mathbf{v}_t(\mathbf{x}_t) + w \cdot (\mathbf{v}_t(\mathbf{x}_t | \mathbf{c}) - \mathbf{v}_t(\mathbf{x}_t))$
+      </div>
+
+      <p>
+        where $\mathbf{v}_t(\mathbf{x}_t | \mathbf{c})$ is the conditional prediction given context $\mathbf{c}$, $\mathbf{v}_t(\mathbf{x}_t)$ is the unconditional prediction, and $w$ is the guidance weight. When $w = 0$, we recover unconditional sampling; when $w > 0$, we push samples toward the conditional distribution, often improving quality at the cost of diversity.
+      </p>
+
+      <p>
+        While this allows one to trade off likelihood and diversity by controlling the effect of the conditioning on the drawn samples, <strong>it is fundamentally different from temperature scaling</strong>, which we show in the next section. 
+        Moreover, <strong>CFG cannot be applied to unconditional models and even for conditional ones, requires training with condition dropout.</strong>
+      </p>
+
+      <h3 class="title is-4">Constant Noise Scaling</h3>
+      <p>
+        Constant Noise Scaling (CNS) is perhaps the closest existing approach to our method in terms of being efficient and training-free. CNS scales the stochastic noise at each reverse sampling step in DDPM by a constant factor. From an SDE perspective, CNS solves the following reverse-time SDE:
+      </p>
+      
+      <div class="has-text-centered" style="margin: 2rem 0;">
+        $d\mathbf{x} = [f(\mathbf{x},t) - g(t)^2 \nabla \log p_t(\mathbf{x})]dt + \frac{g(t)}{\sqrt{k}}d\bar{w}$
+      </div>
+      
+      <p>
+        where compared to the regular reverse-time SDE, the noise term is scaled by the constant factor $\frac{1}{\sqrt{k}}$. 
+        Intuitively, a larger $k$ reduces the noise injected at each step, leading to samples that are more likely under the model distribution, while a smaller $k$ increases the noise, promoting diversity.
+        While CNS is widely used to control sample variance and improve quality, it <strong>only applies to stochastic samplers</strong> and <strong>a fixed scaling factor over sampling horizon often leads to impaired distribution and mode dropping.</strong>
+      </p>
+
+      <!-- Illustrative Examples Section -->
+      <h2 class="title is-3">Illustrative Examples</h2>
+      <p>
+        To better understand the limitations of prior art and the benefits of our proposed Temporal Score Rescaling (TSR), we consider a <strong>simple isotropic Gaussian mixture</strong> as a data distribution, where top 3 modes are class 0 and bottom 3 modes are class 1. 
+        We use the analytical score function of the GMM for all methods, for both conditional and unconditional generation. 
+        Intuitively, we would want the sampled distribution to preserve the global structure of the data distribution, while adjusting the "sharpness" of each mode to control sample likelihood and diversity.
+      </p>
+
+      <!-- Unconditional Generation -->
+      <div class="generation-section">
+        <h3 class="title is-4">Unconditional Generation</h3>
+        
+        <div class="method-control-buttons">
+          <button data-method="tsr" class="button">
+            <span class="icon"><i class="fas fa-star"></i></span>
+            <span>TSR (Ours)</span>
+          </button>
+          <button data-method="ddpm" class="button active" onclick="selectMethod('unconditional', 'ddpm')">
+            <span>DDPM</span>
+          </button>
+          <button data-method="cns" class="button" onclick="selectMethod('unconditional', 'cns')">
+            <span>CNS</span>
+          </button>
+        </div>
+
+        <div class="method-grid">
+          <div class="method-plot" id="unconditional-tsr">
+            <div class="image-container">
+              <img src="static/images/tsr.png" alt="TSR Unconditional Generation">
+            </div>
+            <h4 class="subtitle is-5">DDPM+TSR (Ours)</h4>
+          </div>
+          <div class="method-plot" id="unconditional-ddpm">
+            <div class="image-container">
+              <img src="static/images/ddpm.png" alt="DDPM Unconditional Generation">
+            </div>
+            <h4 class="subtitle is-5">DDPM</h4>
+          </div>
+          <div class="method-plot hidden" id="unconditional-cns">
+            <div class="image-container">
+              <img src="static/images/cns.png" alt="CNS Unconditional Generation">
+            </div>
+            <h4 class="subtitle is-5">DDPM+CNS</h4>
+          </div>
+        </div>
+        
+        <div class="has-text-centered" style="margin-top: 1.5rem; font-size: 0.875rem; color: #6b7280;">
+          <p><strong>Figure 1.</strong> Density evolution during the sampling process from noise (t=1.0) to data (t=0.0). 
+          The prior distribution is shown on the left, the density evolution in the center, and the final generated distribution on the right. 
+          Our TSR method shows improved control over the sampling process compared to baseline methods.</p>
+        </div>
+      </div>
+
+      <!-- Conditional Generation -->
+      <div class="generation-section">
+        <h3 class="title is-4">Conditional Generation</h3>
+        
+        <div class="method-control-buttons">
+          <button data-method="tsr" class="button">
+            <span class="icon"><i class="fas fa-star"></i></span>
+            <span>TSR (Ours)</span>
+          </button>
+          <button data-method="ddpm" class="button active" onclick="selectMethod('conditional', 'ddpm')">
+            <!-- <span class="icon"><i class="fas fa-random"></i></span> -->
+            <span>DDPM</span>
+          </button>
+          <button data-method="cfg" class="button" onclick="selectMethod('conditional', 'cfg')">
+            <!-- <span class="icon"><i class="fas fa-cog"></i></span> -->
+            <span>CFG</span>
+          </button>
+          <button data-method="cns" class="button" onclick="selectMethod('conditional', 'cns')">
+            <!-- <span class="icon"><i class="fas fa-cog"></i></span> -->
+            <span>CNS</span>
+          </button>
+        </div>
+
+        <div class="method-grid">
+          <div class="method-plot" id="conditional-tsr">
+            <div class="image-container">
+              <img src="static/images/tsr_cond.png" alt="TSR Conditional Generation">
+            </div>
+            <h4 class="subtitle is-5">DDMP+TSR (Ours)</h4>
+          </div>
+          <div class="method-plot" id="conditional-ddpm">
+            <div class="image-container">
+              <img src="static/images/ddpm_cond.png" alt="DDPM Conditional Generation">
+            </div>
+            <h4 class="subtitle is-5">DDPM</h4>
+          </div>
+          <div class="method-plot hidden" id="conditional-cfg">
+            <div class="image-container">
+              <img src="static/images/ddpm_cond_cfg.png" alt="CFG Conditional Generation">
+            </div>
+            <h4 class="subtitle is-5">DDPM+CFG</h4>
+          </div>
+          <div class="method-plot hidden" id="conditional-cns">
+            <div class="image-container">
+              <img src="static/images/cns_cond.png" alt="CNS Conditional Generation">
+            </div>
+            <h4 class="subtitle is-5">DDPM+CNS</h4>
+          </div>
+        </div>
+                <div class="has-text-centered" style="margin-top: 1.5rem; font-size: 0.875rem; color: #6b7280;">
+          <p><strong>Figure 2.</strong> Density evolution during the sampling process from noise (t=1.0) to data (t=0.0). 
+          The prior distribution is shown on the left, the density evolution in the center, and the final generated distribution on the right. 
+          Our TSR method shows improved control over the sampling process compared to baseline methods.</p>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<script>
+// Method selection functionality
+function selectMethod(section, method) {
+  // Update button states for the specific section
+  const sectionButtons = document.querySelectorAll(`.generation-section:has(#${section}-tsr) .method-control-buttons button`);
+  sectionButtons.forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Set active button
+  const activeButton = document.querySelector(`[onclick="selectMethod('${section}', '${method}')"]`);
+  if (activeButton) {
+    activeButton.classList.add('active');
+  }
+  
+  // Hide all method plots for this section except TSR
+  const allPlots = document.querySelectorAll(`#${section}-ddpm, #${section}-cfg, #${section}-cns`);
+  allPlots.forEach(plot => {
+    plot.classList.add('hidden');
+  });
+  
+  // Show selected method plot
+  const selectedPlot = document.querySelector(`#${section}-${method}`);
+  if (selectedPlot) {
+    selectedPlot.classList.remove('hidden');
+  }
+  
+  // TSR is always visible (never add hidden class to it)
+  const tsrPlot = document.querySelector(`#${section}-tsr`);
+  if (tsrPlot) {
+    tsrPlot.classList.remove('hidden');
+  }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Set initial state - both sections should show TSR + DDPM
+  // The buttons already have 'active' class and plots have correct visibility
+  console.log('Page loaded - default state initialized');
+});
+</script>
+
+<!-- Interactive Visualization Section -->
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="content">
+      
+      <h2 class="title is-3">Interactive Flow Matching Visualization</h2>
+
+      <div class="interactive-viz-container">
+        <h3 class="title is-4">Interactive Flow Matching Visualization</h3>
+        
+        <!-- Prediction Type Selection -->
+        <div class="control-group">
+          <label class="control-label">Prediction Type:</label>
+          <div class="button-group">
+            <button onclick="setPredType('v')" id="v-btn" style="background-color: #e5e7eb; color: #374151;">
+              Diffusion 
+            </button>
+            <button onclick="setPredType('flow')" id="flow-btn" style="background-color: #2563eb; color: white;">
+              Flow
+            </button>
+          </div>
+        </div>
+
+        <!-- K Parameter Buttons -->
+        <div class="control-group">
+          <label class="control-label">
+            Parameter (K): <span id="k-value" style="color: #2563eb; font-family: monospace;">10.0</span>
+          </label>
+          <div class="button-group" id="k-buttons">
+            <button onclick="setK(1.0)" style="background-color: #e5e7eb; color: #374151;">1.0</button>
+            <button onclick="setK(2.0)" style="background-color: #e5e7eb; color: #374151;">2.0</button>
+            <button onclick="setK(5.0)" style="background-color: #e5e7eb; color: #374151;">5.0</button>
+            <button onclick="setK(10.0)" style="background-color: #2563eb; color: white;">10.0</button>
+          </div>
+        </div>
+
+        <!-- Single Plotly Chart with Subplots -->
+        <div id="plotly-chart">
+          <!-- Loading spinner -->
+          <div id="loading-spinner">
+            <svg style="width: 2.5rem; height: 2.5rem; color: #2563eb;" class="animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle style="opacity: 0.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path style="opacity: 0.75;" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p style="margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280;">Loading visualization data...</p>
+          </div>
+        </div>
+        
+        <!-- Time Slider -->
+        <div class="time-control">
+          <label class="control-label">
+            Time (T): <span id="t-value" style="color: #2563eb; font-family: monospace;">1.0</span>
+          </label>
+          <input type="range" id="t-slider" min="0" max="1" step="0.01" value="0" class="slider">
+        </div>
+        
+        <!-- Play/Pause Button -->
+        <div class="play-control">
+          <button onclick="toggleAnimation()" id="play-btn">
+            <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Play Animation
+          </button>
+        </div>
+        
+        <div class="performance-stats" id="perf-stats">
+          Render time: -- | FPS: --
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+
+<footer class="footer">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p>
+            This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank">Academic Project Page Template</a> which was adopted from the <a href="https://nerfies.github.io" target="_blank">Nerfies</a> project page.
+            You are free to borrow the source code of this website, we just ask that you link back to this page in the footer. <br> This website is licensed under a <a rel="license"  href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative
+            Commons Attribution-ShareAlike 4.0 International License</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Performance optimizations
+let currentPredType = 'flow';
+let animationId = null;
+let isPlaying = false;
+let dataCache = new Map(); // Cache for generated data
+let plotInitialized = false;
+let lastRenderTime = 0;
+let frameCount = 0;
+let fpsInterval = null;
+let flowData = null;
+let dataLoaded = false;
+let availableKValues = [1.0, 2.0, 5.0, 10.0];
+
+// Load flow data from JSON file with optimized error handling
+async function loadFlowData() {
+  try {
+    const response = await fetch('flow_data_compressed.json');
+    if (!response.ok) {
+      throw new Error(`Failed to load flow data: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    // Check if data has metadata structure
+    if (data.metadata && data.samples) {
+      flowData = data.samples;
+      // Extract available k values from metadata
+      if (data.metadata.k_values) {
+        availableKValues = data.metadata.k_values;
+        updateKButtons();
+      }
+    } else {
+      flowData = data;
+    }
+    
+    dataLoaded = true;
+    console.log('Flow data loaded successfully');
+    console.log('Available K values:', availableKValues);
+    
+    // Clear cache and reinitialize
+    dataCache.clear();
+    plotInitialized = false;
+    updateAllPlotsOptimized();
+    
+    // Hide loading spinner
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+      spinner.style.display = 'none';
+    }
+  } catch (error) {
+    console.warn('Could not load flow data, using generated data:', error);
+    dataLoaded = false;
+    
+    // Hide spinner and show fallback message
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+      spinner.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center;">
+          <svg style="height: 2rem; width: 2rem; color: #d97706;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+          </svg>
+          <p style="margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280;">Using demo data</p>
+        </div>
+      `;
+      setTimeout(() => {
+        spinner.style.display = 'none';
+        updateAllPlotsOptimized();
+      }, 1500);
+    }
+  }
+}
+
+// Update K buttons based on available data
+function updateKButtons() {
+  const kValue = document.getElementById('k-value');
+  const kButtons = document.getElementById('k-buttons');
+  
+  const initialK = availableKValues.includes(10.0) ? 10.0 : availableKValues[availableKValues.length - 1];
+  kValue.textContent = initialK.toFixed(1);
+  
+  kButtons.innerHTML = '';
+  availableKValues.forEach(k => {
+    const button = document.createElement('button');
+    button.onclick = () => setK(k);
+    button.textContent = k.toFixed(1);
+    button.id = `k-btn-${k.toFixed(1)}`;
+    
+    if (k === initialK) {
+      button.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    } else {
+      button.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    }
+    
+    kButtons.appendChild(button);
+  });
+}
+
+// Get data from loaded JSON with fallback to generated data
+function getData(pattern, t, k, method) {
+  if (!dataLoaded || !flowData) {
+    return generateOptimizedData(pattern, t, k, method, false);
+  }
+  
+  // Handle ground truth specially
+  if (method === 'ground_truth') {
+    const key = `${pattern}_ground_truth_k=1.0`;
+    if (flowData[key]) {
+      const timeData = flowData[key];
+      const pointData = timeData["0.00"];
+      
+      if (pointData && pointData.x && pointData.y) {
+        return { x: pointData.x, y: pointData.y };
+      }
+    }
+    return generateOptimizedData(pattern, 0.0, k, method, false);
+  }
+  
+  // Snap k to nearest available value
+  const actualK = snapToNearestK(k);
+  
+  // For base methods, use k=1.0; for others, use actual k
+  const isBaseMethod = (method === 'ddpm' || method === 'flow_ode');
+  const effectiveK = isBaseMethod ? 1.0 : actualK;
+  
+  if (!availableKValues.includes(effectiveK)) {
+    return generateOptimizedData(pattern, t, k, method, false);
+  }
+  
+  // Construct key to match JSON format
+  let key;
+  if (currentPredType === 'flow') {
+    key = `${pattern}_flow_${method}_k=${effectiveK.toFixed(1)}`;
+  } else {
+    key = `${pattern}_v_${method}_k=${effectiveK.toFixed(1)}`;
+  }
+  
+  if (!flowData[key]) {
+    return generateOptimizedData(pattern, t, k, method, false);
+  }
+  
+  const timeData = flowData[key];
+  
+  // Find exact or closest time point
+  const timeStr = t.toFixed(2);
+  let selectedTime = timeStr;
+  
+  if (!timeData[timeStr]) {
+    const availableTimes = Object.keys(timeData).map(parseFloat);
+    let minDiff = Infinity;
+    
+    availableTimes.forEach(availTime => {
+      const diff = Math.abs(availTime - t);
+      if (diff < minDiff) {
+        minDiff = diff;
+        selectedTime = availTime.toFixed(2);
+      }
+    });
+  }
+  
+  const pointData = timeData[selectedTime];
+  
+  if (!pointData) {
+    return generateOptimizedData(pattern, t, k, method, false);
+  }
+  
+  // Handle both compact and regular formats
+  if (pointData.x && pointData.y) {
+    return { x: pointData.x, y: pointData.y };
+  }
+  
+  if (Array.isArray(pointData) && pointData.length > 0) {
+    const x = pointData.map(p => p[0]);
+    const y = pointData.map(p => p[1]);
+    return { x, y };
+  }
+  
+  return generateOptimizedData(pattern, t, k, method, false);
+}
+
+// Snap k value to nearest available value
+function snapToNearestK(value) {
+  let nearest = availableKValues[0];
+  let minDiff = Math.abs(value - availableKValues[0]);
+  
+  for (const k of availableKValues) {
+    const diff = Math.abs(value - k);
+    if (diff < minDiff) {
+      minDiff = diff;
+      nearest = k;
+    }
+  }
+  
+  return nearest;
+}
+function generateOptimizedData(pattern, t, k, method, useCache = true) {
+  const cacheKey = `${pattern}-${method}-${t.toFixed(2)}-${k.toFixed(1)}`;
+  
+  if (useCache && dataCache.has(cacheKey)) {
+    return dataCache.get(cacheKey);
+  }
+  
+  // Reduce point count for better performance
+  const n = 500; // Reduced from 300
+  let x = [];
+  let y = [];
+  
+  if (pattern === 'checkerboard') {
+    // Optimized checkerboard generation
+    const pointsPerSquare = Math.floor(n / 32);
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 8; j++) {
+        if ((i + j) % 2 === 0) {
+          const centerX = i * 0.125 + 0.0625;
+          const centerY = j * 0.125 + 0.0625;
+          
+          for (let p = 0; p < pointsPerSquare; p++) {
+            const noise = t * 0.3;
+            let dx = (Math.random() - 0.5) * 0.05;
+            let dy = (Math.random() - 0.5) * 0.05;
+            
+            // Method-specific transformations (simplified)
+            if (method.includes('cns') || method.includes('nns')) {
+              const factor = 1 + t * k * 2;
+              dx *= factor;
+              dy *= factor;
+            } else if (method.includes('tsr') || method.includes('psr')) {
+              const factor = Math.max(0.1, 1 - t * 0.5);
+              dx *= factor;
+              dy *= factor;
+            }
+            
+            x.push(centerX + dx + (Math.random() - 0.5) * noise);
+            y.push(centerY + dy + (Math.random() - 0.5) * noise);
+          }
+        }
+      }
+    }
+  } else if (pattern === 'swissroll') {
+    // Optimized swiss roll generation
+    for (let i = 0; i < n; i++) {
+      const theta = i / n * 3 * Math.PI;
+      const r = 0.1 + theta / (3 * Math.PI) * 0.3;
+      const noise = t * 0.1 * k;
+      
+      let px = 0.5 + r * Math.cos(theta) * (1 - t * 0.3);
+      let py = 0.5 + r * Math.sin(theta) * (1 - t * 0.3);
+      
+      if (method.includes('cns') || method.includes('nns')) {
+        px += (Math.random() - 0.5) * noise * 2;
+        py += (Math.random() - 0.5) * noise * 2;
+      } else {
+        px += (Math.random() - 0.5) * noise;
+        py += (Math.random() - 0.5) * noise;
+      }
+      
+      x.push(px);
+      y.push(py);
+    }
+  }
+  
+  const data = { x, y };
+  
+  // Cache the result
+  if (useCache && dataCache.size < 1000) { // Limit cache size
+    dataCache.set(cacheKey, data);
+  }
+  
+  return data;
+}
+
+// Get methods for current prediction type
+function getMethodsForPredType() {
+  if (currentPredType === 'v') {
+    return [
+      { value: 'ground_truth', title: 'Ground Truth' },
+      { value: 'ddpm', title: 'DDPM' },
+      { value: 'cns', title: 'CNS' },
+      { value: 'tsr', title: 'TSR' }
+    ];
+  } else {
+    return [
+      { value: 'ground_truth', title: 'Ground Truth' },
+      { value: 'flow_ode', title: 'Flow-ODE' },
+      { value: 'flow_nns_sde', title: 'Flow-CNS-SDE' },
+      { value: 'flow_psr_ode', title: 'Flow-TSR-ODE' }
+    ];
+  }
+}
+
+// Optimized plot update using Plotly.restyle instead of newPlot
+function updateAllPlotsOptimized() {
+  const startTime = performance.now();
+  
+  const sliderValue = parseFloat(document.getElementById('t-slider').value);
+  const t = 1.0 - sliderValue;
+  const k = parseFloat(document.getElementById('k-value').textContent);
+  
+  document.getElementById('t-value').textContent = t.toFixed(2);
+  
+  const methods = getMethodsForPredType();
+  const updateData = { x: [], y: [] };
+  
+  // Generate data for all 8 subplots - prioritize JSON data
+  for (let i = 0; i < 4; i++) {
+    const swissData = getData('swissroll', t, k, methods[i].value);
+    updateData.x.push(swissData.x);
+    updateData.y.push(swissData.y);
+  }
+  
+  for (let i = 0; i < 4; i++) {
+    const checkerData = getData('checkerboard', t, k, methods[i].value);
+    updateData.x.push(checkerData.x);
+    updateData.y.push(checkerData.y);
+  }
+  
+  if (plotInitialized) {
+    // Use Plotly.restyle for much faster updates
+    Plotly.restyle('plotly-chart', updateData, [0, 1, 2, 3, 4, 5, 6, 7]);
+  } else {
+    // Initial plot creation
+    initializePlot(updateData);
+    plotInitialized = true;
+  }
+  
+  // Performance tracking
+  const endTime = performance.now();
+  lastRenderTime = endTime - startTime;
+  frameCount++;
+  
+  updatePerformanceStats();
+}
+
+// Initialize the plot structure once
+function initializePlot(initialData) {
+  const methods = getMethodsForPredType();
+  const traces = [];
+  
+  // Create all traces
+  for (let i = 0; i < 8; i++) {
+    traces.push({
+      x: initialData.x[i],
+      y: initialData.y[i],
+      mode: 'markers',
+      type: 'scattergl', // Use WebGL for better performance
+      marker: {
+        size: 2,
+        color: 'rgb(59, 130, 246)',
+        opacity: 0.6
+      },
+      showlegend: false,
+      xaxis: i < 4 ? (i === 0 ? 'x' : `x${i + 1}`) : `x${i + 1}`,
+      yaxis: i < 4 ? (i === 0 ? 'y' : `y${i + 1}`) : `y${i + 1}`
+    });
+  }
+  
+  // Optimized layout
+  const layout = {
+    grid: { rows: 2, columns: 4, pattern: 'independent' },
+    paper_bgcolor: 'white',
+    plot_bgcolor: 'white',
+    margin: { t: 40, r: 20, b: 30, l: 20 },
+    hovermode: false,
+    dragmode: false, // Disable interactions for performance
+    scrollZoom: false,
+    doubleClick: false,
+    showTips: false,
+    annotations: []
+  };
+  
+  // Add titles
+  for (let i = 0; i < 4; i++) {
+    layout.annotations.push({
+      text: methods[i].title,
+      xref: 'paper',
+      yref: 'paper',
+      x: (i * 0.25) + 0.125,
+      y: 1.02,
+      xanchor: 'center',
+      yanchor: 'bottom',
+      showarrow: false,
+      font: { size: 11 }
+    });
+  }
+  
+  // Row labels
+  layout.annotations.push({
+    text: 'Swiss Roll',
+    xref: 'paper', yref: 'paper',
+    x: -0.02, y: 0.75,
+    xanchor: 'right', yanchor: 'middle',
+    showarrow: false,
+    font: { size: 10 }, textangle: -90
+  });
+  
+  layout.annotations.push({
+    text: 'Checkerboard',
+    xref: 'paper', yref: 'paper',
+    x: -0.02, y: 0.25,
+    xanchor: 'right', yanchor: 'middle',
+    showarrow: false,
+    font: { size: 10 }, textangle: -90
+  });
+  
+  // Configure axes
+  for (let i = 1; i <= 8; i++) {
+    const xaxis = i === 1 ? 'xaxis' : `xaxis${i}`;
+    const yaxis = i === 1 ? 'yaxis' : `yaxis${i}`;
+    
+    layout[xaxis] = {
+      range: [-2, 2],
+      showgrid: false,
+      showticklabels: false,
+      zeroline: false,
+      fixedrange: true // Disable zoom/pan for performance
+    };
+    
+    layout[yaxis] = {
+      range: [-2, 2],
+      showgrid: false,
+      showticklabels: false,
+      zeroline: false,
+      fixedrange: true
+    };
+  }
+  
+  const config = {
+    displayModeBar: false,
+    responsive: true,
+    staticPlot: false // Keep false but disable interactions above
+  };
+  
+  Plotly.newPlot('plotly-chart', traces, layout, config);
+}
+
+// Performance stats update
+function updatePerformanceStats() {
+  const stats = document.getElementById('perf-stats');
+  if (stats) {
+    const fps = frameCount > 0 ? Math.round(1000 / lastRenderTime) : 0;
+    stats.textContent = `Render time: ${lastRenderTime.toFixed(1)}ms | FPS: ${fps}`;
+  }
+}
+
+// Optimized animation with requestAnimationFrame
+function animateOptimized() {
+  const slider = document.getElementById('t-slider');
+  let value = parseFloat(slider.value);
+  
+  const t = 1.0 - value;
+  const stepSize = t > 0.5 ? 0.02 : 0.01;
+  
+  value += stepSize;
+  value = Math.round(value * 50) / 50; // Snap to 0.02 intervals
+  
+  if (value >= 1) {
+    value = 1;
+    slider.value = value;
+    updateAllPlotsOptimized();
+    stopAnimation();
+    return;
+  }
+  
+  slider.value = value;
+  updateAllPlotsOptimized();
+
+  
+  if (isPlaying) {
+    animationId = requestAnimationFrame(animateOptimized);
+  }
+}
+
+function stopAnimation() {
+  isPlaying = false;
+  const btn = document.getElementById('play-btn');
+  btn.innerHTML = `
+    <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+    </svg>
+    Play Animation
+  `;
+  btn.style.backgroundColor = '#10b981';
+  
+  if (animationId) {
+    cancelAnimationFrame(animationId);
+  }
+}
+
+// Control functions
+function setPredType(predType) {
+  currentPredType = predType;
+  dataCache.clear(); // Clear cache when switching types
+  
+  const vBtn = document.getElementById('v-btn');
+  const flowBtn = document.getElementById('flow-btn');
+  
+  if (predType === 'v') {
+    vBtn.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    flowBtn.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+  } else {
+    vBtn.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    flowBtn.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+  }
+  
+  plotInitialized = false; // Force plot recreation with new methods
+  updateAllPlotsOptimized();
+}
+
+function setK(value) {
+  document.getElementById('k-value').textContent = value.toFixed(1);
+  
+  // Update button styles
+  const buttons = document.querySelectorAll('#k-buttons button');
+  buttons.forEach(btn => {
+    if (btn.textContent === value.toFixed(1)) {
+      btn.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    } else {
+      btn.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    }
+  });
+  
+  updateAllPlotsOptimized();
+}
+
+function toggleAnimation() {
+  frameCount = 0; // Reset frame counter
+  
+  if (!isPlaying) {
+    const slider = document.getElementById('t-slider');
+    if (parseFloat(slider.value) >= 1) {
+      slider.value = 0;
+      updateAllPlotsOptimized();
+    }
+    
+    isPlaying = true;
+    const btn = document.getElementById('play-btn');
+    btn.innerHTML = `
+      <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      Pause Animation
+    `;
+    btn.style.backgroundColor = '#dc2626';
+    
+    animateOptimized();
+  } else {
+    stopAnimation();
+  }
+}
+
+// Event listeners
+document.getElementById('t-slider').addEventListener('input', function() {
+  const sliderValue = parseFloat(this.value);
+  const t = 1.0 - sliderValue;
+  document.getElementById('t-value').textContent = t.toFixed(2);
+  updateAllPlotsOptimized();
+});
+
+// Initialize - load JSON data first
+window.addEventListener('DOMContentLoaded', () => {
+  // Show loading spinner initially
+  const spinner = document.getElementById('loading-spinner');
+  if (spinner) {
+    spinner.style.display = 'flex';
+  }
+  
+  // Load data and initialize
+  loadFlowData();
+  
+  // Start FPS monitoring
+  fpsInterval = setInterval(() => {
+    frameCount = 0; // Reset for next interval
+  }, 1000);
+});
+</script>
+
+</body>
+</html>
