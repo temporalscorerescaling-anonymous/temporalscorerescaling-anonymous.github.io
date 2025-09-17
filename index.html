@@ -1,0 +1,2050 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <!-- Meta tags for social media banners -->
+  <meta name="description" content="Temporal Score Rescaling for Temperature Sampling in Diffusion and Flow Models">
+  <meta property="og:title" content="Temporal Score Rescaling for Temperature Sampling"/>
+  <meta property="og:description" content="Simple Way of Controlling the Temperature of Diffusion and Flow models"/>
+  <meta property="og:url" content="URL OF THE WEBSITE"/>
+  <meta property="og:image" content="static/image/your_banner_image.png" />
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+
+  <meta name="twitter:title" content="Temporal Score Rescaling for Temperature Sampling">
+  <meta name="twitter:description" content="Simple Way of Controlling the Temperature of Diffusion and Flow models">
+  <meta name="twitter:image" content="static/images/your_twitter_banner_image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="keywords" content="diffusion models, flow matching, temperature sampling, score rescaling">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Temporal Score Rescaling for Temperature Sampling in Diffusion and Flow Models</title>
+  <!-- <link rel="icon" type="image/x-icon" href="static/images/favicon.ico"> -->
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+
+  <link rel="stylesheet" href="static/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="static/css/fontawesome.all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+
+  <!-- MathJax for mathematical notation -->
+  <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+      }
+    };
+  </script>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://documentcloud.adobe.com/view-sdk/main.js"></script>
+  <script defer src="static/js/fontawesome.all.min.js"></script>
+  <script src="static/js/bulma-carousel.min.js"></script>
+  <script src="static/js/bulma-slider.min.js"></script>
+  <script src="static/js/index.js"></script>
+
+  <!-- Plotly for interactive visualizations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+
+  <style>
+    /* Half-width utility for slider sections */
+    .half-width {
+      width: 50%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    @media (max-width: 768px) {
+      .half-width {
+        width: 100%;
+      }
+    }
+    :root {
+      /* Base thumb size for all sliders */
+      --slider-thumb-size: 10px;
+      /* Fine-tune tick-to-interval spacing: try -1px, 0px, 1px, etc. */
+      --tick-align-adjust: -10px;
+      /* Extra space between labels (gap between grid columns) */
+      --tick-column-gap: 0px; /* e.g., 12px, 20px */
+      /* Stretch tick row beyond container width to create more room between labels */
+      --tick-stretch: 110%; /* e.g., 105%, 110% */
+    }
+
+    .slider::-webkit-slider-thumb {
+      appearance: none;
+      width: var(--slider-thumb-size); /* Standardize thumb size for alignment with tick padding */
+      height: var(--slider-thumb-size);
+      border-radius: 50%;
+      background: #3b82f6;
+      cursor: pointer;
+    }
+    
+    .slider::-moz-range-thumb {
+      width: var(--slider-thumb-size); /* Standardize thumb size for alignment with tick padding */
+      height: var(--slider-thumb-size);
+      border-radius: 50%;
+      background: #3b82f6;
+      cursor: pointer;
+      border: none;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+
+    /* Smooth transitions for plot visibility */
+    .method-plot {
+      transition: all 0.3s ease-in-out;
+    }
+    
+    .method-plot.hidden {
+      display: none !important;
+    }
+
+    /* Grid auto-fit when plots are hidden */
+    .grid.adaptive {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+    }
+
+    /* Force K button styling */
+    button[id^="k-btn-"][data-selected="true"] {
+      background-color: #2563eb !important;
+      color: #ffffff !important;
+    }
+    
+    button[id^="k-btn-"][data-selected="false"] {
+      background-color: #e5e7eb !important;
+      color: #374151 !important;
+    }
+    
+    button[id^="k-btn-"] {
+      border: none !important;
+    }
+
+    /* Custom styling for method plots */
+    .method-control-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .method-control-buttons button {
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* TSR button always active styling */
+    .method-control-buttons button[data-method="tsr"] {
+      background-color: #10b981 !important;
+      color: white !important;
+      cursor: default;
+    }
+
+    /* Other method buttons */
+    .method-control-buttons button:not([data-method="tsr"]) {
+      background-color: #e5e7eb;
+      color: #374151;
+      cursor: pointer;
+    }
+
+    .method-control-buttons button:not([data-method="tsr"]).active {
+      background-color: #2563eb;
+      color: white;
+    }
+
+    .method-control-buttons button:not([data-method="tsr"]):hover:not(.active) {
+      background-color: #d1d5db;
+    }
+
+    .method-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .method-plot {
+      text-align: center;
+    }
+
+    .method-plot .image-container {
+      background-color: #f8f9fa;
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .method-plot img {
+      width: 100%;
+      height: 16rem;
+      object-fit: contain;
+      border-radius: 0.25rem;
+    }
+    
+    /* Full size display for density evolution images */
+    .generation-section .method-plot img {
+      height: auto;
+      max-height: none;
+    }
+
+    .interactive-viz-container {
+      background: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .control-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .control-label {
+      font-size: 1.0rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .button-group button {
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      transition: all 0.3s ease;
+    }
+
+    #plotly-chart {
+      width: 100%;
+      height: 450px;
+      position: relative;
+    }
+
+    #loading-spinner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.75);
+    }
+
+    .time-control {
+      margin-top: 1.5rem;
+    }
+
+    .time-control input[type="range"] {
+      width: 100%;
+      height: 0.5rem;
+      background: #e5e7eb;
+      border-radius: 0.5rem;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .play-control {
+      margin-top: 1rem;
+      text-align: center;
+    }
+
+    .play-control button {
+      padding: 0.5rem 1.5rem;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background-color 0.3s ease;
+    }
+
+    .play-control button:hover {
+      background: #059669;
+    }
+
+    /* Performance stats styling */
+    .performance-stats {
+      font-size: 0.75rem;
+      color: #6b7280;
+      text-align: right;
+      margin-top: 0.5rem;
+    }
+
+    /* Section separator */
+    .generation-section {
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .generation-section:last-child {
+      border-bottom: none;
+    }
+
+    /* Density evolution slider styling */
+    .density-slider-container {
+      margin-bottom: 2rem;
+    }
+    
+    .density-slider-container .control-label {
+      margin-bottom: 1rem;
+    }
+    
+    .density-slider-container .slider {
+      margin-bottom: 0.5rem;
+      width: 100%;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      outline: none;
+    }
+    
+    .density-slider-container .slider::-webkit-slider-thumb {
+      appearance: none;
+      width: var(--slider-thumb-size);
+      height: var(--slider-thumb-size);
+      border-radius: 50%;
+      background: #2563eb;
+      cursor: pointer;
+    }
+    
+    .density-slider-container .slider::-moz-range-thumb {
+      width: var(--slider-thumb-size);
+      height: var(--slider-thumb-size);
+      border-radius: 50%;
+      background: #2563eb;
+      cursor: pointer;
+      border: none;
+    }
+    
+    /* Tick container styling for proper alignment */
+    .tick-container {
+      position: relative;
+      margin-top: 0.5rem;
+      /* Half of thumb width for alignment + optional fine-tune adjust */
+      padding-left: calc(var(--slider-thumb-size) / 2 + var(--tick-align-adjust));
+      padding-right: calc(var(--slider-thumb-size) / 2 + var(--tick-align-adjust));
+      /* Allow widening/narrowing label spacing by stretching container width */
+      width: var(--tick-stretch);
+      margin-left: calc((100% - var(--tick-stretch)) / 2);
+      margin-right: calc((100% - var(--tick-stretch)) / 2);
+      display: grid; /* Use grid so each tick gets equal width cell */
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      column-gap: var(--tick-column-gap);
+      align-items: center;
+      font-family: monospace;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    
+    .tick-container .tick {
+      cursor: pointer;
+      text-align: center;
+      color: #374151;
+      transition: color 0.3s ease;
+      min-width: 0;
+      flex-shrink: 0;
+      white-space: nowrap; /* Keep labels on a single line */
+    }
+    
+    .tick-container .tick:hover {
+      color: #1f2937;
+    }
+    
+    .tick-container .tick.highlighted {
+      color: #2563eb !important;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+  <section class="hero">
+    <div class="hero-body">
+      <div class="container is-max-desktop">
+        <div class="columns is-centered">
+          <div class="column has-text-centered">
+            <h1 class="title is-1 publication-title">Temporal Score Rescaling for Temperature Sampling in Diffusion and Flow Models</h1>
+            <div class="is-size-5 publication-authors">
+               <!-- Paper authors -->
+              <span class="author-block">
+                <a href="https://icml.cc/" target="_blank">ICML Anonymous Submission ID 10931</a></span>
+                
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Teaser Video -->
+<section class="section" style="padding-top: 0rem; padding-bottom: 1rem;">
+  <div class="container" style="max-width: 1600px;">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-full">
+        <div class="video-container" style="position: relative; width: 100%; margin: 0rem 0;">
+          <video width="100%" autoplay muted loop controls style="border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); max-width: 1000px;">
+            <source src="static/videos/teaser_animation_hd.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Paper abstract -->
+<section class="section hero is-light">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            We present a mechanism to steer the sampling diversity of denoising diffusion and flow matching models, 
+            allowing users to sample from a sharper or broader distribution than the training distribution. 
+            We build on the observation that these models leverage (learned) score functions of noisy data distributions 
+            for sampling and show that rescaling these allows one to effectively control a 'local' sampling temperature. 
+            Notably, this approach does not require any finetuning or alterations to training strategy, 
+            and can be applied to any off-the-shelf model and is compatible with both, deterministic and stochastic samplers. 
+            We first validate our framework on toy 2D data, and then demonstrate its application for diffusion models 
+            trained across five disparate tasks -- image generation, pose estimation, depth prediction, robot manipulation, 
+            and protein design. We find that  across these tasks, our approach allows sampling from sharper (or flatter) distributions, 
+            yielding performance gains e.g., depth prediction models benefit from sampling more likely depth estimates, 
+            whereas image generation models perform better when sampling a slightly flatter distribution.
+            </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- End paper abstract -->
+
+<!-- Main Content Section -->
+<section class="section">
+  <div class="container" style="max-width: 1400px;">
+    <div class="content">
+
+      <!-- <h2 class="title is-3">Diffusion and Flow Models</h2>
+      <p>
+        Diffusion and flow models both fall under the family of stochastic interpolant<sup>1</sup>, which converts samples from data distribution $\mathbf{x}_0 \sim p_0(\mathbf{x})$ to Gaussian noise $\boldsymbol{\epsilon} \sim \mathcal{N}(0, \mathbf{I})$. The interpolant process can be defined as:
+      </p>
+
+      <div class="has-text-centered" style="margin: 2rem 0;">
+        $\mathbf{x}_t = \alpha_t \mathbf{x}_0 + \sigma_t \boldsymbol{\epsilon} \tag{1}$
+      </div>
+
+      <p>
+        Different noise schedules $\alpha_t, \sigma_t$ correspond to different formulations of stochastic interpolants. For example, for flow matching models it is common to set $\alpha_t=1-t, \ \sigma_t=t$, while for variance-preserving diffusion models they are defined such that $\alpha_t^2 + \sigma_t^2 = 1$.
+      </p>
+
+      <h2 class="title is-3">Temperature Scaling</h2>
+      <p>
+        The process of trading off sample likelihood and diversity at inference is commonly referred to as temperature sampling – a higher temperature leads to diverse samples, and a lower temperature leads to more likely ones. 
+        In the following, we explain two common approaches to steer the inference of diffusion or flow models, and discuss their limitations.
+      </p>
+
+      <h3 class="title is-4">Classifier Free Guidance</h3>
+      <p>
+        Classifier-Free Guidance (CFG) is a widely-used technique for controlling the trade-off between sample quality and diversity in both diffusion models and flow matching. The core idea is to interpolate between an unconditional model prediction and a conditional model prediction during sampling.
+      </p>
+
+      <p>
+        For any score-based or flow-based generative model, CFG modifies the predicted direction (whether it's a score, velocity, or flow field) as:
+      </p>
+
+      <div class="has-text-centered" style="margin: 2rem 0;">
+        $\tilde{\mathbf{v}}_t = \mathbf{v}_t(\mathbf{x}_t) + w \cdot (\mathbf{v}_t(\mathbf{x}_t | \mathbf{c}) - \mathbf{v}_t(\mathbf{x}_t))$
+      </div>
+
+      <p>
+        where $\mathbf{v}_t(\mathbf{x}_t | \mathbf{c})$ is the conditional prediction given context $\mathbf{c}$, $\mathbf{v}_t(\mathbf{x}_t)$ is the unconditional prediction, and $w$ is the guidance weight. When $w = 0$, we recover unconditional sampling; when $w > 0$, we push samples toward the conditional distribution, often improving quality at the cost of diversity.
+      </p>
+
+      <p>
+        While this allows one to trade off likelihood and diversity by controlling the effect of the conditioning on the drawn samples, <strong>it is fundamentally different from temperature scaling</strong>, which we show in the next section. 
+        Moreover, <strong>CFG cannot be applied to unconditional models and even for conditional ones, requires training with condition dropout.</strong>
+      </p>
+
+      <h3 class="title is-4">Constant Noise Scaling</h3>
+      <p>
+        Constant Noise Scaling (CNS) is perhaps the closest existing approach to our method in terms of being efficient and training-free. CNS scales the stochastic noise at each reverse sampling step in DDPM by a constant factor. From an SDE perspective, CNS solves the following reverse-time SDE:
+      </p>
+      
+      <div class="has-text-centered" style="margin: 2rem 0;">
+        $d\mathbf{x} = [f(\mathbf{x},t) - g(t)^2 \nabla \log p_t(\mathbf{x})]dt + \frac{g(t)}{\sqrt{k}}d\bar{w}$
+      </div>
+      
+      <p>
+        where compared to the regular reverse-time SDE, the noise term is scaled by the constant factor $\frac{1}{\sqrt{k}}$. 
+        Intuitively, a larger $k$ reduces the noise injected at each step, leading to samples that are more likely under the model distribution, while a smaller $k$ increases the noise, promoting diversity.
+        While CNS is widely used to control sample variance and improve quality, it <strong>only applies to stochastic samplers</strong> and <strong>a fixed scaling factor over sampling horizon often leads to impaired distribution and mode dropping.</strong>
+      </p> -->
+
+      <!-- Method Section -->
+      <h2 class="title is-3">Method</h2>
+      <p>
+        We propose Temporal Score Rescaling (TSR), a simple method that controls the likelihood-diversity trade-off for diffusion and flow models. 
+        TSR can be easily applied to <em>any off-the-shelf diffusion or flow model</em>, without any training or extra inference-time computation.
+      </p>
+      
+      <p>
+        Given a pretrained diffusion model predicting noise $\epsilon_\theta(x,t)$ and parameter $k$ controlling the temperature, during the sampling process, TSR replaces $\epsilon_\theta(x,t)$ with a scaled prediction:
+      </p>
+      <div class="has-text-centered" style="margin: 1.5rem 0;">
+          $$ \tilde{\epsilon}_\theta(x,t) = \frac{\alpha_t^2 \sigma^2 + \sigma_t^2}{\alpha_t \tfrac{\sigma^2}{k} + \sigma_t^2}~\epsilon_\theta(x,t) \equiv r_t(k, \sigma) \epsilon_\theta(x,t)$$
+      </div>
+      <p>
+        where $\alpha_t$, $\sigma_t$ are the diffusion noise schedule given by $x_t = \alpha_t x_0 + \sigma_t \epsilon$. $\sigma$ is a user-input parameter.
+      </p>
+      <p>
+        For a flow matching model predicting flow velocity $v_\theta(x,t)$, TSR replaces it with the following velocity:
+      </p>
+      <div class="has-text-centered" style="margin: 1.5rem 0;">
+          $$ \tilde{v}_{\theta}(x,t) = \alpha_t^{-1}(r_t(k, \sigma)(\alpha_t v_\theta(x,t) - \dot{\alpha_t}x) + \dot{\alpha_t}x) $$
+      </div>
+
+      <!-- Illustrative Examples Section -->
+      <!-- <h2 class="title is-3">Analysis on Mixture of 1D Gaussians</h2>
+      <p>
+        To better understand the limitations of prior art and the benefits of our proposed Temporal Score Rescaling (TSR), we consider a <strong>simple isotropic Gaussian mixture</strong> as a data distribution. 
+        We use the analytical score function of the GMM for all methods, for both conditional and unconditional generation. 
+        Intuitively, we would want the sampled distribution to preserve the global structure of the data distribution, while adjusting the "sharpness" of each mode to control sample likelihood and diversity.
+      </p> -->
+
+      <br>
+      <!-- Unconditional Generation -->
+      <div class="generation-section">
+        <h3 class="title is-4">Steering Distribution with TSR </h3>
+        <p>
+          By controling the inverse temperature $k$, we can steer the sampled distribution to be sharper (larger $k$) or broader (smaller $k$).
+          At $k=1$ TSR yields the original distribution. 
+        </p>
+
+        <div class="method-grid">
+          <div class="method-plot" id="unconditional-ddpm">
+            <div class="image-container">
+              <img id="uncond-ddpm-img" src="static/images/animated_1d/uncond_v_TSR_k1.0.gif" alt="DDPM Unconditional Generation">
+            </div>
+            <h4 class="subtitle is-5">Original (DDPM)</h4>
+          </div>
+          <div class="method-plot" id="unconditional-tsr">
+            <div class="image-container">
+              <img id="uncond-tsr-img" src="static/images/animated_1d/uncond_v_TSR_k4.0.gif" alt="TSR Unconditional Generation">
+            </div>
+            <h4 class="subtitle is-5">+Temporal Score Rescaling (Ours)</h4>
+          </div>
+          <div class="method-plot hidden" id="unconditional-cns">
+            <div class="image-container">
+              <img id="uncond-cns-img" src="static/images/animated_1d/uncond_v_CNS_k4.0.gif" alt="CNS Unconditional Generation">
+            </div>
+            <h4 class="subtitle is-5">+Constant Noise Scaling</h4>
+          </div>
+        </div>
+        
+        <div class="control-group density-slider-container half-width">
+          <label class="control-label">
+            k value: <span id="uncond-k-value" style="color: #2563eb; font-family: monospace;">8</span>
+          </label>
+          <input type="range" id="uncond-k-slider" min="0" max="8" step="1" value="7" class="slider">
+          <div id="uncond-k-ticks" class="tick-container"></div>
+        </div>
+        
+        <div class="has-text-centered" style="margin-top: 1.5rem; font-size: 0.875rem; color: #6b7280;">
+          <p> Drag the slider to control the $k$ values. Each plot shows the prior distribution (left), the probability density evolves over time (middle), and the final generated distribution (right).
+            We also show real sample trajectories during the reverse diffusion process.  
+          </p>
+
+          <!-- <p><strong>Figure 1.</strong> Density evolution during the sampling process from noise (t=1.0) to data (t=0.0). 
+          The prior distribution is shown on the left, the density evolution in the center, and the final generated distribution on the right. 
+          </p> -->
+        </div>
+      </div>
+
+      <br>
+      <!-- Conditional Generation -->
+      <div class="generation-section">
+        <h3 class="title is-3">Comparison with Prior Methods</h3>
+        <p>
+          Here we evaluate conditional generation where the data distribution is an isotropic mixture of 6 Gaussians, with the top 3 modes belonging to class 1 and the bottom 3 modes to class 2. We show 
+          the sampled conditional distribution for class 1.
+          We compare TSR with Constant Noise Scaling (CNS), the de facto approach for 'pseudo temperature' sampling with diffusion models and Classifier-Free Guidance (CFG). As shown below, 
+          both CNS and CFG distort the distribution, while TSR preserves the equal weights between modes. Moreover, CNS does not apply on deterministic samplers (e.g., Flow-ODE), while TSR applies 
+          to any diffusion and flow models with <em>any samplers</em>.
+        </p>
+
+        <!-- Sampler Control Buttons -->
+        <div class="control-group" style="margin-bottom: 2rem;">
+          <label class="control-label">Sampler:</label>
+          <div class="button-group">
+            <button onclick="setConditionalSampler('ddpm')" id="cond-sampler-ddpm" class="button" style="background-color: #2563eb; color: white;">DDPM (Stochastic)</button>
+            <button onclick="setConditionalSampler('flow')" id="cond-sampler-flow" class="button" style="background-color: #e5e7eb; color: #374151;">Flow (Deterministic)</button>
+          </div>
+        </div>
+
+        <div class="method-grid">
+          <div class="method-plot" id="conditional-ddpm">
+            <div class="image-container">
+              <img id="cond-ddpm-img" src="static/images/animated_1d/cond_v_DDPM_cfg1.0.gif" alt="DDPM Conditional Generation">
+            </div>
+            <h4 class="subtitle is-5" id="cond-ddpm-title">Original (DDPM, class 0)</h4>
+          </div>
+          <div class="method-plot" id="conditional-tsr">
+            <div class="image-container">
+              <img id="cond-tsr-img" src="static/images/animated_1d/cond_v_TSR_k4.0.gif" alt="TSR Conditional Generation">
+            </div>
+            <h4 class="subtitle is-5">+Temporal Score Rescaling (Ours)</h4>
+          </div>
+          <div class="method-plot" id="conditional-baseline">
+            <div class="image-container">
+              <img id="cond-baseline-img" src="static/images/animated_1d/cond_v_CNS_k4.0.gif" alt="Baseline Conditional Generation">
+            </div>
+            <h4 class="subtitle is-5" id="baseline-title">+Constant Noise Scaling</h4>
+            <div class="baseline-dropdown" style="text-align: center; margin-top: 15px;">
+              <label style="margin-right: 10px; font-weight: 500; font-size: 14px;">Baseline Method:</label>
+              <select id="baseline-method-select" onchange="toggleConditionalMethod(this.value)" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background: white;">
+                <option value="cfg">Classifier Free Guidance</option>
+                <option value="cns" selected>Constant Noise Scaling</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <div class="control-group density-slider-container half-width">
+          <label class="control-label">
+            <span id="cond-param-label">k value/cfg guidance scale</span>: <span id="cond-k-value" style="color: #2563eb; font-family: monospace;">8</span>
+          </label>
+          <input type="range" id="cond-k-slider" min="0" max="8" step="1" value="7" class="slider">
+          <div id="cond-k-ticks" class="tick-container"></div>
+        </div>
+        
+        <div class="has-text-centered" style="margin-top: 1.5rem; font-size: 0.875rem; color: #6b7280;">
+          <!-- <p><strong>Figure 2.</strong> Density evolution during the sampling process from noise (t=1.0) to data (t=0.0). 
+          The prior distribution is shown on the left, the density evolution in the center, and the final generated distribution on the right. 
+          </p> -->
+
+          <p>Drag the slider to control $k$ value for TSR and CNS, or the guidance scale for CFG.</p>
+          <p>
+          The data distribution contains 6 Gaussians with top 3 modes belonging to class 1 and bottom 3 modes to class 2. Showing conditional distribution for class 1.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<script>
+// Global variable to track current conditional sampler
+let currentConditionalSampler = 'ddpm'; // default to DDPM
+
+// Set conditional sampler (DDPM or Flow)
+function setConditionalSampler(sampler) {
+  currentConditionalSampler = sampler;
+  
+  // Update button styles
+  const ddpmBtn = document.getElementById('cond-sampler-ddpm');
+  const flowBtn = document.getElementById('cond-sampler-flow');
+  
+  if (sampler === 'ddpm') {
+    ddpmBtn.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    flowBtn.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    
+    // Update titles
+    document.getElementById('cond-ddpm-title').textContent = 'Original (DDPM, class 0)';
+  } else {
+    ddpmBtn.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    flowBtn.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    
+    // Keep CNS option visible for flow (it will show "Not Applicable")
+    const cnsOption = document.querySelector('#baseline-method-select option[value="cns"]');
+    if (cnsOption) cnsOption.style.display = 'block';
+    
+    // Update titles
+    document.getElementById('cond-ddpm-title').textContent = 'Original (Flow, class 0)';
+  }
+  
+  updateConditionalImages();
+}
+
+// Method selection functionality for conditional generation only
+function toggleConditionalMethod(method) {
+  // Update dropdown selection
+  const dropdown = document.getElementById('baseline-method-select');
+  dropdown.value = method;
+  
+  // Update baseline panel title and content
+  const baselineTitle = document.getElementById('baseline-title');
+  const paramLabel = document.getElementById('cond-param-label');
+  
+  if (method === 'cfg') {
+    baselineTitle.textContent = '+Classifier Free Guidance';
+    paramLabel.textContent = 'k value/cfg guidance scale';
+  } else {
+    baselineTitle.textContent = '+Constant Noise Scaling';
+    paramLabel.textContent = 'k value';
+  }
+  
+  // Update images for current slider value
+  updateConditionalImages();
+}
+
+// Available k/cfg values for density evolution sliders (matching actual animated GIF files)
+const densityKValues = [0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0];
+
+// Initialize density evolution sliders
+function initializeDensitySliders() {
+  // Unconditional slider
+  const uncondSlider = document.getElementById('uncond-k-slider');
+  const uncondTicks = document.getElementById('uncond-k-ticks');
+  
+  // Set initial value to k=4.0 (index 6)
+  uncondSlider.value = 6;
+  document.getElementById('uncond-k-value').textContent = '4';
+  
+  // Create tick marks
+  uncondTicks.innerHTML = '';
+  densityKValues.forEach((k, index) => {
+    const tick = document.createElement('div');
+    tick.textContent = k.toString();
+    tick.className = 'tick';
+    tick.dataset.index = index;
+    
+    if (k === 4.0) {
+      tick.classList.add('highlighted');
+    }
+    
+    tick.addEventListener('click', function() {
+      uncondSlider.value = this.dataset.index;
+      uncondSlider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    
+    uncondTicks.appendChild(tick);
+  });
+  // Ensure equal spacing using grid columns
+  uncondTicks.style.display = 'grid';
+  uncondTicks.style.gridTemplateColumns = `repeat(${densityKValues.length}, 1fr)`;
+  
+  // Conditional slider
+  const condSlider = document.getElementById('cond-k-slider');
+  const condTicks = document.getElementById('cond-k-ticks');
+  
+  // Set initial value to cfg=4.0 (index 6) 
+  condSlider.value = 6;
+  document.getElementById('cond-k-value').textContent = '4';
+  
+  // Create tick marks
+  condTicks.innerHTML = '';
+  densityKValues.forEach((k, index) => {
+    const tick = document.createElement('div');
+    tick.textContent = k.toString();
+    tick.className = 'tick';
+    tick.dataset.index = index;
+    
+    if (k === 4.0) {
+      tick.classList.add('highlighted');
+    }
+    
+    tick.addEventListener('click', function() {
+      condSlider.value = this.dataset.index;
+      condSlider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    
+    condTicks.appendChild(tick);
+  });
+  // Ensure equal spacing using grid columns
+  condTicks.style.display = 'grid';
+  condTicks.style.gridTemplateColumns = `repeat(${densityKValues.length}, 1fr)`;
+}
+
+// Update unconditional images based on slider value
+function updateUnconditionalImages() {
+  const sliderValue = parseInt(document.getElementById('uncond-k-slider').value);
+  const k = densityKValues[sliderValue];
+  
+  document.getElementById('uncond-k-value').textContent = k.toString();
+  
+  // Update tick highlighting
+  const ticks = document.querySelectorAll('#uncond-k-ticks .tick');
+  ticks.forEach((tick, index) => {
+    tick.classList.toggle('highlighted', index === sliderValue);
+  });
+  
+  // Format k value to ensure .0 for integers
+  const kFormatted = k % 1 === 0 ? k.toFixed(1) : k.toString();
+  
+  // Update images - DDPM uses TSR k=1 (no rescaling), now using animated GIFs
+  document.getElementById('uncond-ddpm-img').src = `static/images/animated_1d/uncond_v_TSR_k1.0.gif`;
+  document.getElementById('uncond-tsr-img').src = `static/images/animated_1d/uncond_v_TSR_k${kFormatted}.gif`;
+  document.getElementById('uncond-cns-img').src = `static/images/animated_1d/uncond_v_CNS_k${kFormatted}.gif`;
+}
+
+// Update conditional images based on slider value and selected method
+function updateConditionalImages() {
+  const sliderValue = parseInt(document.getElementById('cond-k-slider').value);
+  const value = densityKValues[sliderValue];
+  const isConfigMethod = document.getElementById('baseline-method-select').value === 'cfg';
+  const baselineImg = document.getElementById('cond-baseline-img');
+  
+  document.getElementById('cond-k-value').textContent = value.toString();
+  
+  // Update tick highlighting
+  const ticks = document.querySelectorAll('#cond-k-ticks .tick');
+  ticks.forEach((tick, index) => {
+    tick.classList.toggle('highlighted', index === sliderValue);
+  });
+  
+  // Format value to ensure .0 for integers
+  const valueFormatted = value % 1 === 0 ? value.toFixed(1) : value.toString();
+  
+  if (currentConditionalSampler === 'ddpm') {
+    // DDPM (v prediction type)
+    // Original always shows cfg=1.0
+    document.getElementById('cond-ddpm-img').src = `static/images/animated_1d/cond_v_DDPM_cfg1.0.gif`;
+    
+    // Always ensure baseline image is visible for DDPM and hide "Not Applicable" message
+    baselineImg.style.display = 'block';
+    const naMessage = baselineImg.parentElement.querySelector('.na-message');
+    if (naMessage) naMessage.style.display = 'none';
+    
+    if (isConfigMethod) {
+      // CFG method - vary cfg parameter for CFG, k parameter for TSR
+      document.getElementById('cond-tsr-img').src = `static/images/animated_1d/cond_v_TSR_k${valueFormatted}.gif`;
+      baselineImg.src = `static/images/animated_1d/cond_v_DDPM_cfg${valueFormatted}.gif`;
+    } else {
+      // CNS method - vary k parameter for both TSR and CNS
+      document.getElementById('cond-tsr-img').src = `static/images/animated_1d/cond_v_TSR_k${valueFormatted}.gif`;
+      baselineImg.src = `static/images/animated_1d/cond_v_CNS_k${valueFormatted}.gif`;
+    }
+  } else {
+    // Flow sampler
+    // Original always shows baseline flow
+    document.getElementById('cond-ddpm-img').src = `static/images/animated_1d/cond_flow_Euler-ODE_cfg1.0.gif`;
+    
+    if (isConfigMethod) {
+      // CFG method - vary cfg parameter for CFG, k parameter for TSR
+      document.getElementById('cond-tsr-img').src = `static/images/animated_1d/cond_flow_TSR_k${valueFormatted}.gif`;
+      baselineImg.src = `static/images/animated_1d/cond_flow_Euler-ODE_cfg${valueFormatted}.gif`;
+    } else {
+      // CNS method - but for flow, CNS is not applicable
+      document.getElementById('cond-tsr-img').src = `static/images/animated_1d/cond_flow_TSR_k${valueFormatted}.gif`;
+      // Show "Not Applicable" message for CNS with flow
+      baselineImg.style.display = 'none';
+      const container = baselineImg.parentElement;
+      let naMessage = container.querySelector('.na-message');
+      if (!naMessage) {
+        naMessage = document.createElement('div');
+        naMessage.className = 'na-message';
+        naMessage.style.cssText = 'display: flex; align-items: center; justify-content: center; height: 16rem; background-color: #f3f4f6; border-radius: 0.25rem; color: #6b7280; font-style: italic; font-size: 1.1rem;';
+        naMessage.textContent = 'Not Applicable';
+        container.appendChild(naMessage);
+      }
+      naMessage.style.display = 'flex';
+    }
+    
+    // Show baseline image if not CNS method
+    if (isConfigMethod) {
+      baselineImg.style.display = 'block';
+      const naMessage = baselineImg.parentElement.querySelector('.na-message');
+      if (naMessage) naMessage.style.display = 'none';
+    }
+  }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Set initial state - both sections should show TSR + DDPM
+  // The buttons already have 'active' class and plots have correct visibility
+  console.log('Page loaded - default state initialized');
+  
+  // Initialize density evolution sliders
+  initializeDensitySliders();
+  
+  // Initialize conditional sampler to DDPM
+  currentConditionalSampler = 'ddpm';
+  
+  // Add event listeners for sliders
+  document.getElementById('uncond-k-slider').addEventListener('input', updateUnconditionalImages);
+  document.getElementById('cond-k-slider').addEventListener('input', updateConditionalImages);
+  
+  // Set CNS as default method in conditional section
+  document.getElementById('baseline-method-select').value = 'cns';
+  
+  // Set initial label for CNS
+  document.getElementById('cond-param-label').textContent = 'k value';
+  
+  // Update conditional images to ensure correct initial state
+  updateConditionalImages();
+});
+</script>
+
+<!-- Interactive Visualization Section -->
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="content">
+      
+      <h2 class="title is-3">Comparison on 2D Distributions</h2>
+
+      <div class="interactive-viz-container">
+        <!-- <h3 class="title is-4">Interactive Flow Matching Visualization</h3> -->
+        
+        <!-- Prediction Type Selection -->
+        <div class="control-group">
+          <label class="control-label">Sampler:</label>
+          <div class="button-group">
+            <button onclick="setPredType('v')" id="v-btn" style="background-color: #e5e7eb; color: #374151;">
+              DDPM (Stochastic) 
+            </button>
+            <button onclick="setPredType('flow')" id="flow-btn" style="background-color: #2563eb; color: white;">
+              Flow (Deterministic)
+            </button>
+          </div>
+        </div>
+
+        <!-- K Parameter Buttons -->
+        <div class="control-group">
+          <label class="control-label">
+            Parameter (K): <span id="k-value" style="color: #2563eb; font-family: monospace;">10.0</span>
+          </label>
+          <div class="button-group" id="k-buttons">
+            <button onclick="setK(1.0)" style="background-color: #e5e7eb; color: #374151;">1.0</button>
+            <button onclick="setK(2.0)" style="background-color: #e5e7eb; color: #374151;">2.0</button>
+            <button onclick="setK(5.0)" style="background-color: #e5e7eb; color: #374151;">5.0</button>
+            <button onclick="setK(10.0)" style="background-color: #2563eb; color: white;">10.0</button>
+          </div>
+        </div>
+
+        <!-- Single Plotly Chart with Subplots -->
+        <div id="plotly-chart">
+          <!-- Loading spinner -->
+          <div id="loading-spinner">
+            <svg style="width: 2.5rem; height: 2.5rem; color: #2563eb;" class="animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle style="opacity: 0.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path style="opacity: 0.75;" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p style="margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280;">Loading visualization data...</p>
+          </div>
+        </div>
+        
+        <!-- Time Slider -->
+        <div class="time-control half-width">
+          <label class="control-label">
+            Time (T): <span id="t-value" style="color: #2563eb; font-family: monospace;">1.0</span>
+          </label>
+          <input type="range" id="t-slider" min="0" max="1" step="0.01" value="0" class="slider">
+        </div>
+        
+        <!-- Play/Pause Button -->
+        <div class="play-control">
+          <button onclick="toggleAnimation()" id="play-btn">
+            <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Play Animation
+          </button>
+        </div>
+        
+        <div class="performance-stats" id="perf-stats">
+          Render time: -- | FPS: --
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- Qualitative Results Section -->
+<section class="section">
+  <div class="container" style="max-width: 1400px;">
+    <div class="content">
+      <h2 class="title is-3">Applications to Real Tasks</h2>
+      <p>
+        We evaluate TSR across diverse applications to demonstrate its versatility and effectiveness. 
+        Our method consistently improves sample quality by allowing models to sample from sharper or flatter distributions as needed for each task.
+      </p>
+
+      <!-- Image Generation -->
+      <div class="generation-section">
+        <h3 class="title is-4">Image Generation</h3>
+        <p>
+          For text to image generation, we find it beneficial to flatten the sample distribution by adopting a $k$ slightly smaller than 1 with TSR. 
+          In this way, TSR enhances the high-frequency details in the images and improves both FID and CLIP score.
+        </p>
+
+        <div class="control-group">
+          <label class="control-label">Select Example:</label>
+          <div class="button-group" style="flex-wrap: wrap;">
+            <button onclick="selectImageExample('example00')" id="img-example-example00" class="button active">Example 1</button>
+            <button onclick="selectImageExample('example01')" id="img-example-example01" class="button">Example 2</button>
+            <button onclick="selectImageExample('example02')" id="img-example-example02" class="button">Example 3</button>
+            <button onclick="selectImageExample('example03')" id="img-example-example03" class="button">Example 4</button>
+            <button onclick="selectImageExample('example04')" id="img-example-example04" class="button">Example 5</button>
+            <button onclick="selectImageExample('example05')" id="img-example-example05" class="button">Example 6</button>
+            <button onclick="selectImageExample('example06')" id="img-example-example06" class="button">Example 7</button>
+            <button onclick="selectImageExample('example07')" id="img-example-example07" class="button">Example 8</button>
+            <button onclick="selectImageExample('example08')" id="img-example-example08" class="button">Example 9</button>
+            <button onclick="selectImageExample('example09')" id="img-example-example09" class="button">Example 10</button>
+            <button onclick="selectImageExample('example10')" id="img-example-example10" class="button">Example 11</button>
+          </div>
+        </div>
+
+        <div class="method-grid" style="grid-template-columns: 1fr 1fr; max-width: 1000px; margin: 0 auto;">
+          <div class="method-plot">
+            <div class="image-container">
+              <img id="img-original" src="static/images/image_SD3/img_tsr_example00_k1.00.png" alt="Original" style="width: 100%; max-width: 500px; height: auto; object-fit: contain;">
+            </div>
+            <h4 class="subtitle is-6">Original (SD3)</h4>
+          </div>
+          <div class="method-plot">
+            <div class="image-container">
+              <img id="img-tsr" src="static/images/image_SD3/img_tsr_example00_k0.95.png" alt="TSR" style="width: 100%; max-width: 500px; height: auto; object-fit: contain;">
+            </div>
+            <h4 class="subtitle is-6">TSR</h4>
+          </div>
+        </div>
+        
+        <div class="control-group half-width">
+          <label class="control-label">
+            TSR k value: <span id="img-k-value" style="color: #2563eb; font-family: monospace;">0.95</span>
+          </label>
+          <!-- Slider uses index mapping into availableKValues so all discrete k images are reachable -->
+          <input type="range" id="img-k-slider" min="0" max="10" step="1" value="5" class="slider" style="width: 100%;">
+          <div id="img-k-ticks" class="tick-container"></div>
+        </div>
+        
+        <div class="has-text-centered" style="margin-top: 1.5rem; font-size: 0.875rem; color: #6b7280;">
+          <p>TSR applied to Stable Diffusion 3.</p>
+        </div>
+      </div>
+
+      <!-- Depth Estimation -->
+      <div class="generation-section">
+        <h3 class="title is-4">Depth Estimation</h3>
+        <p>
+          For depth estimation, we apply TSR to Marigold, a diffusion-based single-view depth estimation model.
+          TSR improves accuracy by sampling from a sharper distribution, yielding less noisy depth predictions.
+        </p>
+
+        <div class="control-group">
+          <label class="control-label">Select Input Image:</label>
+          <div class="button-group">
+            <button onclick="selectDepthInput('example1')" id="depth-input-example1" class="button active">Example 1</button>
+            <button onclick="selectDepthInput('example2')" id="depth-input-example2" class="button">Example 2</button>
+            <button onclick="selectDepthInput('example3')" id="depth-input-example3" class="button">Example 3</button>
+            <button onclick="selectDepthInput('example4')" id="depth-input-example4" class="button">Example 4</button>
+            <button onclick="selectDepthInput('example5')" id="depth-input-example5" class="button">Example 5</button>
+            <button onclick="selectDepthInput('example6')" id="depth-input-example6" class="button">Example 6</button>
+            <button onclick="selectDepthInput('example7')" id="depth-input-example7" class="button">Example 7</button>
+            <button onclick="selectDepthInput('example8')" id="depth-input-example8" class="button">Example 8</button>
+          </div>
+        </div>
+        
+        <div class="method-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="method-plot">
+            <div class="image-container">
+              <img id="depth-input-display" src="static/images/depth/depth_example1.png" alt="Input" style="width: 100%; height: auto; object-fit: contain;">
+            </div>
+            <h4 class="subtitle is-6">Input Image</h4>
+          </div>
+          <div class="method-plot">
+            <div class="image-container">
+              <img id="depth-original" src="static/images/depth/depth_original_example1.png" alt="Original" style="width: 100%; height: auto; object-fit: contain;">
+            </div>
+            <h4 class="subtitle is-6">Original (DDIM)</h4>
+          </div>
+          <div class="method-plot">
+            <div class="image-container">
+              <img id="depth-tsr" src="static/images/depth/depth_tsr_example1.png" alt="TSR" style="width: 100%; height: auto; object-fit: contain;">
+            </div>
+            <h4 class="subtitle is-6">+ TSR</h4>
+          </div>
+        </div>
+        
+        <div class="has-text-centered" style="margin-top: 1.5rem; font-size: 0.875rem; color: #6b7280;">
+          <p> Depth esstimation results on Marigold.</p>
+        </div>
+      </div>
+
+      <!-- Pose Estimation -->
+      <div class="generation-section">
+        <h3 class="title is-4">Object Pose Estimation</h3>
+        <p>
+          Similar to depth estiamtion, TSR improves pose estimation accuracy for geometric objects by reducing uncertainty in orientation predictions.
+        </p>
+
+        <div class="control-group">
+          <label class="control-label">Select Example:</label>
+          <div class="button-group">
+            <button onclick="selectPoseInput('class0_1')" id="pose-input-class0_1" class="button active">Example 1</button>
+            <button onclick="selectPoseInput('class1_2')" id="pose-input-class1_2" class="button">Example 2</button>
+            <button onclick="selectPoseInput('class2_1')" id="pose-input-class2_1" class="button">Example 3</button>
+            <button onclick="selectPoseInput('class3_5')" id="pose-input-class3_5" class="button">Example 4</button>
+            <button onclick="selectPoseInput('class4_2')" id="pose-input-class4_2" class="button">Example 5</button>
+          </div>
+        </div>
+        
+        <div class="method-grid" style="grid-template-columns: 1fr 1fr 1fr; max-width: 900px; margin: 0 auto;">
+          <div class="method-plot">
+            <div class="image-container">
+              <img id="pose-input-display" src="static/images/pose/input_class0_1.png" alt="Input" style="width: 100%; max-width: 250px; height: 200px; object-fit: contain;">
+            </div>
+            <h4 class="subtitle is-6">Input Image</h4>
+          </div>
+          <div class="method-plot">
+            <div class="image-container">
+              <img id="pose-original" src="static/images/pose/base_class0_1.png" alt="Original" style="width: 100%; max-width: 250px; height: 200px; object-fit: contain;">
+            </div>
+            <h4 class="subtitle is-6">Original (Score Sampling)</h4>
+          </div>
+          <div class="method-plot">
+            <div class="image-container">
+              <img id="pose-tsr" src="static/images/pose/tsr_class0_1.png" alt="TSR" style="width: 100%; max-width: 250px; height: 200px; object-fit: contain;">
+            </div>
+            <h4 class="subtitle is-6">+ TSR</h4>
+          </div>
+        </div>
+        
+        <div class="has-text-centered" style="margin-top: 1.5rem; font-size: 0.875rem; color: #6b7280;">
+          <p> Object pose prediction results on geometric shapes. each dot marks a sample's first canonical axis (colored by rotation), while circles denote ground-truth poses.</p>
+        </div>
+      </div>
+
+      <!-- Robotics -->
+      <div class="generation-section">
+        <h3 class="title is-4">Robot Manipulation</h3>
+        <p>
+          We perform comparison on Pi-0 model, which uses flow matching to model the distribution of robot actions. With TSR, the policy achieves better success rate by sampling from a sharper distribution.
+        </p>
+        
+        <div class="method-grid" style="grid-template-columns: 1fr 1fr; gap: 2rem; max-width: 1000px; margin: 0 auto;">
+          <div class="method-plot">
+            <div class="video-container">
+              <video width="100%" height="300" controls autoplay muted loop style="border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                <source src="static/videos/robot_flow.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <h4 class="subtitle is-5" style="margin-top: 1rem;">Flow Matching</h4>
+            <!-- <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">
+              Baseline trajectory generation with standard flow matching.
+            </p> -->
+          </div>
+          
+          <div class="method-plot">
+            <div class="video-container">
+              <video width="100%" height="300" controls autoplay muted loop style="border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                <source src="static/videos/robot_tsr.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <h4 class="subtitle is-5" style="margin-top: 1rem;">+ TSR</h4>
+            <!-- <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">
+              Enhanced trajectory generation with temporal score rescaling.
+            </p> -->
+          </div>
+        </div>
+        
+        <!-- <div class="has-text-centered" style="margin-top: 1.5rem; font-size: 0.875rem; color: #6b7280;">
+          <p><strong>Figure 6.</strong> Side-by-side comparison of robot manipulation trajectories. Flow+TSR produces more consistent and successful manipulation with better precision.</p>
+        </div> -->
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="content">
+
+      <div class="generation-section">
+        <h3 class="title is-4">Video Generation with TSR</h3>
+
+        <p>Select an example to view its generated video.</p>
+
+        <!-- Auto-generated example buttons -->
+        <div class="control-group">
+          <label class="control-label">Select Example:</label>
+          <div class="button-group" id="video-example-buttons"></div>
+        </div>
+
+        <!-- Single Video -->
+        <div style="margin-top: 1.5rem;">
+          <video id="main-video" width="100%" controls autoplay muted loop>
+            <source id="main-video-src" src="static/videos/wan2/ex1.mp4" type="video/mp4">
+          </video>
+        </div>
+
+        <div class="has-text-centered" style="margin-top: 1rem; font-size: 0.875rem; color: #6b7280;">
+          <p><strong> TSR-generated video example. Left to right are results with k=0.9, 1.0 and 1.2 respectively. </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<footer class="footer">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p>
+            This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank">Academic Project Page Template</a> which was adopted from the <a href="https://nerfies.github.io" target="_blank">Nerfies</a> project page.
+            You are free to borrow the source code of this website, we just ask that you link back to this page in the footer. <br> This website is licensed under a <a rel="license"  href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative
+            Commons Attribution-ShareAlike 4.0 International License</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Performance optimizations
+let currentPredType = 'flow';
+let animationId = null;
+let isPlaying = false;
+let dataCache = new Map(); // Cache for generated data
+let plotInitialized = false;
+let lastRenderTime = 0;
+let frameCount = 0;
+let fpsInterval = null;
+let flowData = null;
+let dataLoaded = false;
+let availableKValues = [1.0, 2.0, 5.0, 10.0];
+
+// Load flow data from JSON file with optimized error handling
+async function loadFlowData() {
+  try {
+    const response = await fetch('flow_data_compressed.json');
+    if (!response.ok) {
+      throw new Error(`Failed to load flow data: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    // Check if data has metadata structure
+    if (data.metadata && data.samples) {
+      flowData = data.samples;
+      // Extract available k values from metadata
+      if (data.metadata.k_values) {
+        availableKValues = data.metadata.k_values;
+        updateKButtons();
+      }
+    } else {
+      flowData = data;
+    }
+    
+    dataLoaded = true;
+    console.log('Flow data loaded successfully');
+    console.log('Available K values:', availableKValues);
+    
+    // Clear cache and reinitialize
+    dataCache.clear();
+    plotInitialized = false;
+    updateAllPlotsOptimized();
+    
+    // Hide loading spinner
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+      spinner.style.display = 'none';
+    }
+  } catch (error) {
+    console.warn('Could not load flow data, using generated data:', error);
+    dataLoaded = false;
+    
+    // Hide spinner and show fallback message
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+      spinner.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center;">
+          <svg style="height: 2rem; width: 2rem; color: #d97706;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+          </svg>
+          <p style="margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280;">Using demo data</p>
+        </div>
+      `;
+      setTimeout(() => {
+        spinner.style.display = 'none';
+        updateAllPlotsOptimized();
+      }, 1500);
+    }
+  }
+}
+
+// Update K buttons based on available data
+function updateKButtons() {
+  const kValue = document.getElementById('k-value');
+  const kButtons = document.getElementById('k-buttons');
+  
+  const initialK = availableKValues.includes(10.0) ? 10.0 : availableKValues[availableKValues.length - 1];
+  kValue.textContent = initialK.toFixed(1);
+  
+  kButtons.innerHTML = '';
+  availableKValues.forEach(k => {
+    const button = document.createElement('button');
+    button.onclick = () => setK(k);
+    button.textContent = k.toFixed(1);
+    button.id = `k-btn-${k.toFixed(1)}`;
+    
+    if (k === initialK) {
+      button.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    } else {
+      button.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    }
+    
+    kButtons.appendChild(button);
+  });
+}
+
+// Get data from loaded JSON with fallback to generated data
+function getData(pattern, t, k, method) {
+  if (!dataLoaded || !flowData) {
+    return generateOptimizedData(pattern, t, k, method, false);
+  }
+  
+  // Handle ground truth specially
+  if (method === 'ground_truth') {
+    const key = `${pattern}_ground_truth_k=1.0`;
+    if (flowData[key]) {
+      const timeData = flowData[key];
+      const pointData = timeData["0.00"];
+      
+      if (pointData && pointData.x && pointData.y) {
+        return { x: pointData.x, y: pointData.y };
+      }
+    }
+    return generateOptimizedData(pattern, 0.0, k, method, false);
+  }
+  
+  // Handle Flow CNS as Not Applicable - return empty data
+  if (currentPredType === 'flow' && method === 'flow_cns') {
+    return { x: [], y: [] };
+  }
+  
+  // Snap k to nearest available value
+  const actualK = snapToNearestK(k);
+  
+  // For base methods, use k=1.0; for others, use actual k
+  const isBaseMethod = (method === 'ddpm' || method === 'flow_ode');
+  const effectiveK = isBaseMethod ? 1.0 : actualK;
+  
+  if (!availableKValues.includes(effectiveK)) {
+    return generateOptimizedData(pattern, t, k, method, false);
+  }
+  
+  // Construct key to match JSON format
+  let key;
+  if (currentPredType === 'flow') {
+    key = `${pattern}_flow_${method}_k=${effectiveK.toFixed(1)}`;
+  } else {
+    key = `${pattern}_v_${method}_k=${effectiveK.toFixed(1)}`;
+  }
+  
+  if (!flowData[key]) {
+    return generateOptimizedData(pattern, t, k, method, false);
+  }
+  
+  const timeData = flowData[key];
+  
+  // Find exact or closest time point
+  const timeStr = t.toFixed(2);
+  let selectedTime = timeStr;
+  
+  if (!timeData[timeStr]) {
+    const availableTimes = Object.keys(timeData).map(parseFloat);
+    let minDiff = Infinity;
+    
+    availableTimes.forEach(availTime => {
+      const diff = Math.abs(availTime - t);
+      if (diff < minDiff) {
+        minDiff = diff;
+        selectedTime = availTime.toFixed(2);
+      }
+    });
+  }
+  
+  const pointData = timeData[selectedTime];
+  
+  if (!pointData) {
+    return generateOptimizedData(pattern, t, k, method, false);
+  }
+  
+  // Handle both compact and regular formats
+  if (pointData.x && pointData.y) {
+    return { x: pointData.x, y: pointData.y };
+  }
+  
+  if (Array.isArray(pointData) && pointData.length > 0) {
+    const x = pointData.map(p => p[0]);
+    const y = pointData.map(p => p[1]);
+    return { x, y };
+  }
+  
+  return generateOptimizedData(pattern, t, k, method, false);
+}
+
+// Snap k value to nearest available value
+function snapToNearestK(value) {
+  let nearest = availableKValues[0];
+  let minDiff = Math.abs(value - availableKValues[0]);
+  
+  for (const k of availableKValues) {
+    const diff = Math.abs(value - k);
+    if (diff < minDiff) {
+      minDiff = diff;
+      nearest = k;
+    }
+  }
+  
+  return nearest;
+}
+function generateOptimizedData(pattern, t, k, method, useCache = true) {
+  const cacheKey = `${pattern}-${method}-${t.toFixed(2)}-${k.toFixed(1)}`;
+  
+  if (useCache && dataCache.has(cacheKey)) {
+    return dataCache.get(cacheKey);
+  }
+  
+  // Reduce point count for better performance
+  const n = 500; // Reduced from 300
+  let x = [];
+  let y = [];
+  
+  if (pattern === 'checkerboard') {
+    // Optimized checkerboard generation
+    const pointsPerSquare = Math.floor(n / 32);
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 8; j++) {
+        if ((i + j) % 2 === 0) {
+          const centerX = i * 0.125 + 0.0625;
+          const centerY = j * 0.125 + 0.0625;
+          
+          for (let p = 0; p < pointsPerSquare; p++) {
+            const noise = t * 0.3;
+            let dx = (Math.random() - 0.5) * 0.05;
+            let dy = (Math.random() - 0.5) * 0.05;
+            
+            // Method-specific transformations (simplified)
+            if (method.includes('cns') || method.includes('nns')) {
+              const factor = 1 + t * k * 2;
+              dx *= factor;
+              dy *= factor;
+            } else if (method.includes('tsr') || method.includes('psr')) {
+              const factor = Math.max(0.1, 1 - t * 0.5);
+              dx *= factor;
+              dy *= factor;
+            }
+            
+            x.push(centerX + dx + (Math.random() - 0.5) * noise);
+            y.push(centerY + dy + (Math.random() - 0.5) * noise);
+          }
+        }
+      }
+    }
+  } else if (pattern === 'swissroll') {
+    // Optimized swiss roll generation
+    for (let i = 0; i < n; i++) {
+      const theta = i / n * 3 * Math.PI;
+      const r = 0.1 + theta / (3 * Math.PI) * 0.3;
+      const noise = t * 0.1 * k;
+      
+      let px = 0.5 + r * Math.cos(theta) * (1 - t * 0.3);
+      let py = 0.5 + r * Math.sin(theta) * (1 - t * 0.3);
+      
+      if (method.includes('cns') || method.includes('nns')) {
+        px += (Math.random() - 0.5) * noise * 2;
+        py += (Math.random() - 0.5) * noise * 2;
+      } else {
+        px += (Math.random() - 0.5) * noise;
+        py += (Math.random() - 0.5) * noise;
+      }
+      
+      x.push(px);
+      y.push(py);
+    }
+  }
+  
+  const data = { x, y };
+  
+  // Cache the result
+  if (useCache && dataCache.size < 1000) { // Limit cache size
+    dataCache.set(cacheKey, data);
+  }
+  
+  return data;
+}
+
+// Get methods for current prediction type
+function getMethodsForPredType() {
+  if (currentPredType === 'v') {
+    return [
+      { value: 'ground_truth', title: 'Training Data' },
+      { value: 'ddpm', title: 'Original(DDPM)' },
+      { value: 'cns', title: 'CNS' },
+      { value: 'tsr', title: 'TSR' }
+    ];
+  } else {
+    return [
+      { value: 'ground_truth', title: 'Training Data' },
+      { value: 'flow_ode', title: 'Original(Flow-ODE)' },
+      { value: 'flow_cns', title: 'CNS (N/A)' },
+      { value: 'flow_psr_ode', title: 'Flow-TSR-ODE' }
+    ];
+  }
+}
+
+// Optimized plot update using Plotly.restyle instead of newPlot
+function updateAllPlotsOptimized() {
+  const startTime = performance.now();
+  
+  const sliderValue = parseFloat(document.getElementById('t-slider').value);
+  const t = 1.0 - sliderValue;
+  const k = parseFloat(document.getElementById('k-value').textContent);
+  
+  document.getElementById('t-value').textContent = t.toFixed(2);
+  
+  const methods = getMethodsForPredType();
+  const updateData = { x: [], y: [], text: [], mode: [] };
+  
+  // Generate data for all 8 subplots - prioritize JSON data
+  for (let i = 0; i < 4; i++) {
+    const swissData = getData('swissroll', t, k, methods[i].value);
+    updateData.x.push(swissData.x);
+    updateData.y.push(swissData.y);
+    
+    // Handle Not Applicable case for Flow CNS
+    if (currentPredType === 'flow' && i === 2) {
+      updateData.text.push(['Not Applicable']);
+      updateData.mode.push('text');
+      updateData.x[i] = [0];
+      updateData.y[i] = [0];
+    } else {
+      updateData.text.push([]);
+      updateData.mode.push('markers');
+    }
+  }
+  
+  for (let i = 0; i < 4; i++) {
+    const checkerData = getData('checkerboard', t, k, methods[i].value);
+    updateData.x.push(checkerData.x);
+    updateData.y.push(checkerData.y);
+    
+    // Handle Not Applicable case for Flow CNS
+    if (currentPredType === 'flow' && i === 2) {
+      updateData.text.push(['Not Applicable']);
+      updateData.mode.push('text');
+      updateData.x[i + 4] = [0];
+      updateData.y[i + 4] = [0];
+    } else {
+      updateData.text.push([]);
+      updateData.mode.push('markers');
+    }
+  }
+  
+  if (plotInitialized) {
+    // Use Plotly.restyle for much faster updates
+    Plotly.restyle('plotly-chart', updateData, [0, 1, 2, 3, 4, 5, 6, 7]);
+  } else {
+    // Initial plot creation
+    initializePlot(updateData);
+    plotInitialized = true;
+  }
+  
+  // Performance tracking
+  const endTime = performance.now();
+  lastRenderTime = endTime - startTime;
+  frameCount++;
+  
+  updatePerformanceStats();
+}
+
+// Initialize the plot structure once
+function initializePlot(initialData) {
+  const methods = getMethodsForPredType();
+  const traces = [];
+  
+  // Create all traces
+  for (let i = 0; i < 8; i++) {
+    const traceData = {
+      x: initialData.x[i],
+      y: initialData.y[i],
+      mode: 'markers',
+      type: 'scattergl', // Use WebGL for better performance
+      marker: {
+        size: 2,
+        color: 'rgb(59, 130, 246)',
+        opacity: 0.6
+      },
+      showlegend: false,
+      xaxis: i < 4 ? (i === 0 ? 'x' : `x${i + 1}`) : `x${i + 1}`,
+      yaxis: i < 4 ? (i === 0 ? 'y' : `y${i + 1}`) : `y${i + 1}`
+    };
+    
+    // Handle Not Applicable case for Flow CNS (subplot index 2 and 6)
+    if (currentPredType === 'flow' && (i === 2 || i === 6)) {
+      traceData.mode = 'text';
+      traceData.text = ['Not Applicable'];
+      traceData.x = [0];
+      traceData.y = [0];
+      traceData.textfont = { size: 16, color: '#6b7280' };
+      traceData.marker = { size: 0, opacity: 0 };
+    }
+    
+    traces.push(traceData);
+  }
+  
+  // Optimized layout
+  const layout = {
+    grid: { rows: 2, columns: 4, pattern: 'independent' },
+    paper_bgcolor: 'white',
+    plot_bgcolor: 'white',
+    margin: { t: 40, r: 20, b: 30, l: 20 },
+    hovermode: false,
+    dragmode: false, // Disable interactions for performance
+    scrollZoom: false,
+    doubleClick: false,
+    showTips: false,
+    annotations: []
+  };
+  
+  // Add titles
+  for (let i = 0; i < 4; i++) {
+    layout.annotations.push({
+      text: methods[i].title,
+      xref: 'paper',
+      yref: 'paper',
+      x: (i * 0.25) + 0.125,
+      y: 1.02,
+      xanchor: 'center',
+      yanchor: 'bottom',
+      showarrow: false,
+      font: { size: 11 }
+    });
+  }
+  
+  // Row labels
+  layout.annotations.push({
+    text: 'Swiss Roll',
+    xref: 'paper', yref: 'paper',
+    x: -0.02, y: 0.75,
+    xanchor: 'right', yanchor: 'middle',
+    showarrow: false,
+    font: { size: 10 }, textangle: -90
+  });
+  
+  layout.annotations.push({
+    text: 'Checkerboard',
+    xref: 'paper', yref: 'paper',
+    x: -0.02, y: 0.25,
+    xanchor: 'right', yanchor: 'middle',
+    showarrow: false,
+    font: { size: 10 }, textangle: -90
+  });
+  
+  // Configure axes
+  for (let i = 1; i <= 8; i++) {
+    const xaxis = i === 1 ? 'xaxis' : `xaxis${i}`;
+    const yaxis = i === 1 ? 'yaxis' : `yaxis${i}`;
+    
+    layout[xaxis] = {
+      range: [-2, 2],
+      showgrid: false,
+      showticklabels: false,
+      zeroline: false,
+      fixedrange: true // Disable zoom/pan for performance
+    };
+    
+    layout[yaxis] = {
+      range: [-2, 2],
+      showgrid: false,
+      showticklabels: false,
+      zeroline: false,
+      fixedrange: true
+    };
+  }
+  
+  const config = {
+    displayModeBar: false,
+    responsive: true,
+    staticPlot: false // Keep false but disable interactions above
+  };
+  
+  Plotly.newPlot('plotly-chart', traces, layout, config);
+}
+
+// Performance stats update
+function updatePerformanceStats() {
+  const stats = document.getElementById('perf-stats');
+  if (stats) {
+    const fps = frameCount > 0 ? Math.round(1000 / lastRenderTime) : 0;
+    stats.textContent = `Render time: ${lastRenderTime.toFixed(1)}ms | FPS: ${fps}`;
+  }
+}
+
+// Optimized animation with requestAnimationFrame
+function animateOptimized() {
+  const slider = document.getElementById('t-slider');
+  let value = parseFloat(slider.value);
+  
+  const t = 1.0 - value;
+  const stepSize = t > 0.5 ? 0.01 : 0.01;
+  
+  value += stepSize;
+  // value = Math.round(value * 50) / 50; // Snap to 0.02 intervals
+  
+  if (value >= 1) {
+    value = 1;
+    slider.value = value;
+    updateAllPlotsOptimized();
+    stopAnimation();
+    return;
+  }
+  
+  slider.value = value;
+  updateAllPlotsOptimized();
+
+  
+  if (isPlaying) {
+    animationId = requestAnimationFrame(animateOptimized);
+  }
+}
+
+function stopAnimation() {
+  isPlaying = false;
+  const btn = document.getElementById('play-btn');
+  btn.innerHTML = `
+    <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+    </svg>
+    Play Animation
+  `;
+  btn.style.backgroundColor = '#10b981';
+  
+  if (animationId) {
+    cancelAnimationFrame(animationId);
+  }
+}
+
+// Control functions
+function setPredType(predType) {
+  currentPredType = predType;
+  dataCache.clear(); // Clear cache when switching types
+  
+  const vBtn = document.getElementById('v-btn');
+  const flowBtn = document.getElementById('flow-btn');
+  
+  if (predType === 'v') {
+    vBtn.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    flowBtn.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+  } else {
+    vBtn.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    flowBtn.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+  }
+  
+  plotInitialized = false; // Force plot recreation with new methods
+  updateAllPlotsOptimized();
+}
+
+function setK(value) {
+  document.getElementById('k-value').textContent = value.toFixed(1);
+  
+  // Update button styles
+  const buttons = document.querySelectorAll('#k-buttons button');
+  buttons.forEach(btn => {
+    if (btn.textContent === value.toFixed(1)) {
+      btn.style.cssText = 'background-color: #2563eb; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    } else {
+      btn.style.cssText = 'background-color: #e5e7eb; color: #374151; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;';
+    }
+  });
+  
+  updateAllPlotsOptimized();
+}
+
+function toggleAnimation() {
+  frameCount = 0; // Reset frame counter
+  
+  if (!isPlaying) {
+    const slider = document.getElementById('t-slider');
+    if (parseFloat(slider.value) >= 1) {
+      slider.value = 0;
+      updateAllPlotsOptimized();
+    }
+    
+    isPlaying = true;
+    const btn = document.getElementById('play-btn');
+    btn.innerHTML = `
+      <svg style="width: 1.25rem; height: 1.25rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      Pause Animation
+    `;
+    btn.style.backgroundColor = '#dc2626';
+    
+    animateOptimized();
+  } else {
+    stopAnimation();
+  }
+}
+
+  loadFlowData();
+  
+  // Start FPS monitoring
+  fpsInterval = setInterval(() => {
+    frameCount = 0; // Reset for next interval
+  }, 1000);
+</script>
+
+<script>
+
+
+// Central list of available discrete k values for image examples
+const imageAvailableKValues = [0.8, 0.85, 0.9, 0.92, 0.95, 0.98, 1.0, 1.02, 1.05, 1.08, 1.1, 1.15, 1.2];
+
+// Keep the k values in ascending order but adjust spacing so 0.98 appears at center
+// With 11 values, center is position 5 (0-indexed). We want 0.98 there.
+// So we need to redistribute: more values < 0.98 on left, fewer values > 0.98 on right
+const imageSliderOrder = [...imageAvailableKValues]; // Keep original ascending order
+const imageDefaultIndex = imageAvailableKValues.indexOf(0.95); // Index of 0.95 in original array (4)
+
+// Configure slider element runtime properties
+const imgKSliderEl = document.getElementById('img-k-slider');
+if (imgKSliderEl) {
+  imgKSliderEl.min = 0;
+  imgKSliderEl.max = imageSliderOrder.length - 1;
+  imgKSliderEl.step = 1;
+  imgKSliderEl.value = imageDefaultIndex; // Set to 0.95's position
+
+  // Initialize displayed value and image to 0.95
+  const initialK = 0.95;
+  const activeButton = document.querySelector('[id^="img-example-"].active') || document.getElementById('img-example-example00');
+  const exampleId = activeButton ? activeButton.id.replace('img-example-', '') : 'example00';
+  document.getElementById('img-k-value').textContent = initialK.toFixed(2);
+  document.getElementById('img-tsr').src = `static/images/image_SD3/img_tsr_${exampleId}_k${initialK.toFixed(2)}.png?t=${Date.now()}`;
+}
+
+// Render tick labels under the slider and make them clickable
+function renderImgKTicks() {
+  const container = document.getElementById('img-k-ticks');
+  if (!container || !imageSliderOrder) return;
+  container.innerHTML = '';
+  // Remove any inline styles set in HTML to avoid conflicts
+  if (container.getAttribute('style')) {
+    container.removeAttribute('style');
+  }
+  container.className = 'tick-container'; // Use same styling as density sliders
+  // Enforce grid layout with equal columns for alignment
+  container.style.display = 'grid';
+  container.style.gridTemplateColumns = `repeat(${imageSliderOrder.length}, 1fr)`;
+  
+  const total = imageSliderOrder.length;
+  for (let i = 0; i < total; i++) {
+    const k = imageSliderOrder[i];
+    const tick = document.createElement('div');
+    tick.textContent = k.toFixed(2);
+    tick.className = 'tick';
+    tick.dataset.index = i;
+    
+    // Highlight 0.98 (the reference value) initially
+    if (k === 0.95) {
+      tick.classList.add('highlighted');
+    }
+    
+    tick.addEventListener('click', function() {
+      const idx = parseInt(this.dataset.index, 10);
+      const slider = document.getElementById('img-k-slider');
+      slider.value = idx;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    container.appendChild(tick);
+  }
+}
+
+// Initial render of ticks
+renderImgKTicks();
+
+// Image generation example selection
+function selectImageExample(exampleId) {
+  // Update button states
+  const buttons = ['img-example-example00', 'img-example-example01', 'img-example-example02', 'img-example-example03', 'img-example-example04', 'img-example-example05', 'img-example-example06', 'img-example-example07', 'img-example-example08', 'img-example-example09', 'img-example-example10'];
+  buttons.forEach(btnId => {
+    document.getElementById(btnId).classList.remove('active');
+  });
+  document.getElementById(`img-example-${exampleId}`).classList.add('active');
+  
+  // Update images
+  const originalImg = document.getElementById('img-original');
+  const originalSrc = `static/images/image_SD3/img_tsr_${exampleId}_k1.00.png?t=${Date.now()}`;
+  originalImg.src = originalSrc;
+  
+  // Add error handling for debugging
+  originalImg.onerror = function() {
+    console.error(`Failed to load original image: ${originalSrc}`);
+  };
+  originalImg.onload = function() {
+    console.log(`Successfully loaded original image: ${originalSrc}`);
+  };
+
+  // Read slider as an index into the ordered image slider mapping
+  const idx = parseInt(document.getElementById('img-k-slider').value, 10);
+  const k = imageSliderOrder[idx];
+  document.getElementById('img-k-value').textContent = k.toFixed(2);
+  
+  // Update tick highlighting (maintain current selection)
+  const ticks = document.querySelectorAll('#img-k-ticks .tick');
+  ticks.forEach((tick, index) => {
+    tick.classList.toggle('highlighted', index === idx);
+  });
+  
+  const tsrImg = document.getElementById('img-tsr');
+  const tsrSrc = `static/images/image_SD3/img_tsr_${exampleId}_k${k.toFixed(2)}.png?t=${Date.now()}`;
+  tsrImg.src = tsrSrc;
+  
+  // Add error handling for TSR image as well
+  tsrImg.onerror = function() {
+    console.error(`Failed to load TSR image: ${tsrSrc}`);
+  };
+  tsrImg.onload = function() {
+    console.log(`Successfully loaded TSR image: ${tsrSrc}`);
+  };
+  
+  // Debug logging
+  console.log(`Loading images for ${exampleId}: Original=${originalSrc}, TSR=${tsrSrc}`);
+}
+
+// Find closest available k value
+function findClosestKValue(targetK, availableKs) {
+  let closest = availableKs[0];
+  let minDiff = Math.abs(targetK - availableKs[0]);
+  
+  for (const k of availableKs) {
+    const diff = Math.abs(targetK - k);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = k;
+    }
+  }
+  
+  return closest;
+}
+
+// Image K slider
+document.getElementById('img-k-slider').addEventListener('input', function() {
+  // Slider value is an index into imageSliderOrder
+  const idx = parseInt(this.value, 10);
+  const k = imageSliderOrder[idx];
+  document.getElementById('img-k-value').textContent = k.toFixed(2);
+  
+  // Update tick highlighting
+  const ticks = document.querySelectorAll('#img-k-ticks .tick');
+  ticks.forEach((tick, index) => {
+    tick.classList.toggle('highlighted', index === idx);
+  });
+  
+  const activeBtn2 = document.querySelector('[id^="img-example-"].active') || document.getElementById('img-example-example00');
+  const exId2 = activeBtn2 ? activeBtn2.id.replace('img-example-', '') : 'example00';
+  document.getElementById('img-tsr').src = `static/images/image_SD3/img_tsr_${exId2}_k${k.toFixed(2)}.png?t=${Date.now()}`;
+});
+// Depth estimation input selection
+function selectDepthInput(inputType) {
+  const buttons = ['depth-input-example1', 'depth-input-example2', 'depth-input-example3', 'depth-input-example4', 'depth-input-example5', 'depth-input-example6', 'depth-input-example7', 'depth-input-example8'];
+  buttons.forEach(btnId => {
+    document.getElementById(btnId).classList.remove('active');
+  });
+  document.getElementById(`depth-input-${inputType}`).classList.add('active');
+  
+  // Update images
+  document.getElementById('depth-input-display').src = `static/images/depth/depth_${inputType}.png`;
+  document.getElementById('depth-original').src = `static/images/depth/depth_original_${inputType}.png`;
+  document.getElementById('depth-tsr').src = `static/images/depth/depth_tsr_${inputType}.png`;
+}
+
+function selectPoseInput(inputType) {
+  const buttons = ['pose-input-class0_1', 'pose-input-class1_2', 'pose-input-class2_1', 'pose-input-class3_5', 'pose-input-class4_2'];
+  buttons.forEach(btnId => {
+    document.getElementById(btnId).classList.remove('active');
+  });
+  document.getElementById(`pose-input-${inputType}`).classList.add('active');
+  
+  // Update images
+  document.getElementById('pose-input-display').src = `static/images/pose/input_${inputType}.png`;
+  document.getElementById('pose-original').src = `static/images/pose/base_${inputType}.png`;
+  document.getElementById('pose-tsr').src = `static/images/pose/tsr_${inputType}.png`;
+}
+</script>
+
+<script>
+  // Add as many examples as you want
+  const exampleList = ["ex1", "ex2", "ex3", "ex4", "ex5", "ex6"];  
+  // Add "ex6", "ex7", ..." whenever you want
+  
+  // Auto-generate the buttons
+  const buttonGroup = document.getElementById("video-example-buttons");
+  buttonGroup.innerHTML = exampleList.map((ex, idx) => `
+    <button class="button ${idx === 0 ? 'active' : ''}" 
+            id="video-${ex}"
+            onclick="selectVideoExample('${ex}')">
+      Example ${idx + 1}
+    </button>
+  `).join("");
+  
+  // Update video when an example is selected
+  function selectVideoExample(exampleId) {
+    exampleList.forEach(ex => {
+      document.getElementById(`video-${ex}`).classList.remove("active");
+    });
+    document.getElementById(`video-${exampleId}`).classList.add("active");
+  
+    const src = document.getElementById("main-video-src");
+    src.src = `static/videos/wan2/${exampleId}.mp4?ts=${Date.now()}`;
+  
+    const video = document.getElementById("main-video");
+    video.load();
+    video.play();
+  }
+  </script>
+  
+
+</body>
+</html>
